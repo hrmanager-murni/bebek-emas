@@ -1,6 +1,6 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
 import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-import { getFirestore, doc, setDoc, deleteDoc, onSnapshot, collection, addDoc, getDocs } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+import { getFirestore, doc, setDoc, deleteDoc, onSnapshot, collection, addDoc, getDocs, query, where } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
 const appId = 'bebek-emas-pos-v3'; 
 
@@ -26,6 +26,9 @@ let cart = [], tipeOrder = 'DineIn', isCloudReady = false;
 let discountInfo = { type: '%', value: 0, amount: 0 }; 
 let subtotalCart = 0;
 let activeKategoriKasir = 'ALL';
+
+// Tempat penyimpanan khusus untuk Arsip Lama
+window.arsipData = { transactions: [], expenses: [], close_registers: [], stock_mutations: [] };
 
 window.thermalPrinter = null;
 window.lastPrintedPayload = null;
@@ -167,22 +170,96 @@ async function seedInitialAccounts() {
 }
 
 function setupRealtimeSync() {
-    const handleSync = (col, dbVar, updateFn) => {
-        onSnapshot(getColRef(col), snap => {
-            const data = snap.docs.map(d => ({id: d.id, ...d.data()}));
-            if(col === 'accounts') { accountsDB = data; if(!isCloudReady){ isCloudReady=true; hideLoading();} }
-            if(col === 'menus') { menusDB = data; if(currentUser && ['kasir','admin'].includes(currentUser.role)){ renderKategoriFilterKasir(); renderKasirMenu(); renderKelolaMenu(); } }
-            if(col === 'stocks') { stocksDB = data; if(currentUser) { renderKelolaStok(); renderDashboardStok(); if(!document.getElementById('view-mutasistok').classList.contains('hidden')) loadMutasiDataUI(); if(currentUser.role === 'admin' && !document.getElementById('view-dashboard').classList.contains('hidden')) renderManagerDashboard(); } }
-            if(col === 'transactions') { transactionsDB = data; if(currentUser && ['kasir','admin'].includes(currentUser.role)) { if(!document.getElementById('view-laporan').classList.contains('hidden')) renderLaporanUI(); } }
-            if(col === 'expenses') { expensesDB = data; if(currentUser && ['kasir','admin'].includes(currentUser.role)) { if(!document.getElementById('view-pengeluaran').classList.contains('hidden')) renderPengeluaranUI(); } }
-            if(col === 'close_registers') { closeRegistersDB = data; if(currentUser && currentUser.role === 'admin' && !document.getElementById('view-tutupbuku').classList.contains('hidden')) renderManagerTutupBuku(); }
-            if(col === 'stock_mutations') { mutasiDB = data; if(currentUser && currentUser.role === 'admin') { if(!document.getElementById('view-mutasistok').classList.contains('hidden')) renderManagerMutasi(); if(!document.getElementById('view-dashboard').classList.contains('hidden')) renderManagerDashboard(); } if(currentUser && currentUser.role !== 'admin' && !document.getElementById('view-mutasistok').classList.contains('hidden')) loadMutasiDataUI(); }
-            if(col === 'saved_bills') { savedBillsDB = data; if(currentUser && ['kasir','admin'].includes(currentUser.role)){ document.getElementById('badgeSavedBills').innerText = data.length; document.getElementById('badgeSavedBills').classList.toggle('hidden', data.length === 0); if(!document.getElementById('view-notatersimpan').classList.contains('hidden')) renderSavedBillsUI(); } }
-            if(col === 'requests') { requestsDB = data; if(currentUser && currentUser.role === 'admin' && !document.getElementById('view-dashboard').classList.contains('hidden')) renderManagerDashboard(); if(currentUser && currentUser.role !== 'admin' && !document.getElementById('view-mutasistok').classList.contains('hidden')) loadMutasiDataUI(); }
+    // Hitung batas waktu 30 hari yang lalu
+    const d = new Date(); d.setDate(d.getDate() - 30);
+    const thirtyDaysAgo = d.toISOString().split('T')[0];
+
+    const handleSync = (col) => {
+        let dbRef = getColRef(col);
+        
+        // Hanya tarik 30 hari terakhir untuk data transaksional agar ringan
+        if (['transactions', 'expenses', 'stock_mutations', 'close_registers'].includes(col)) {
+            dbRef = query(getColRef(col), where('tanggal', '>=', thirtyDaysAgo));
+        }
+
+        onSnapshot(dbRef, snap => {
+            const realtimeData = snap.docs.map(docItem => ({id: docItem.id, ...docItem.data()}));
+            
+            // Gabungkan dengan data arsip lama (jika manager sudah menarik arsip)
+            let dataToUse = realtimeData;
+            if (window.arsipData[col] && window.arsipData[col].length > 0) {
+                const merged = [...window.arsipData[col], ...realtimeData];
+                // Hapus duplikat berdasarkan ID
+                dataToUse = Array.from(new Map(merged.map(item => [item.id, item])).values());
+            }
+
+            if(col === 'accounts') { accountsDB = dataToUse; if(!isCloudReady){ isCloudReady=true; hideLoading();} }
+            if(col === 'menus') { menusDB = dataToUse; if(currentUser && ['kasir','admin'].includes(currentUser.role)){ renderKategoriFilterKasir(); renderKasirMenu(); renderKelolaMenu(); } }
+            if(col === 'stocks') { stocksDB = dataToUse; if(currentUser) { renderKelolaStok(); renderDashboardStok(); if(!document.getElementById('view-mutasistok').classList.contains('hidden')) loadMutasiDataUI(); if(currentUser.role === 'admin' && !document.getElementById('view-dashboard').classList.contains('hidden')) renderManagerDashboard(); } }
+            if(col === 'transactions') { transactionsDB = dataToUse; if(currentUser && ['kasir','admin'].includes(currentUser.role)) { if(!document.getElementById('view-laporan').classList.contains('hidden')) renderLaporanUI(); } }
+            if(col === 'expenses') { expensesDB = dataToUse; if(currentUser && ['kasir','admin'].includes(currentUser.role)) { if(!document.getElementById('view-pengeluaran').classList.contains('hidden')) renderPengeluaranUI(); } }
+            if(col === 'close_registers') { closeRegistersDB = dataToUse; if(currentUser && currentUser.role === 'admin' && !document.getElementById('view-tutupbuku').classList.contains('hidden')) renderManagerTutupBuku(); }
+            if(col === 'stock_mutations') { mutasiDB = dataToUse; if(currentUser && currentUser.role === 'admin') { if(!document.getElementById('view-mutasistok').classList.contains('hidden')) renderManagerMutasi(); if(!document.getElementById('view-dashboard').classList.contains('hidden')) renderManagerDashboard(); } if(currentUser && currentUser.role !== 'admin' && !document.getElementById('view-mutasistok').classList.contains('hidden')) loadMutasiDataUI(); }
+            if(col === 'saved_bills') { savedBillsDB = dataToUse; if(currentUser && ['kasir','admin'].includes(currentUser.role)){ document.getElementById('badgeSavedBills').innerText = dataToUse.length; document.getElementById('badgeSavedBills').classList.toggle('hidden', dataToUse.length === 0); if(!document.getElementById('view-notatersimpan').classList.contains('hidden')) renderSavedBillsUI(); } }
+            if(col === 'requests') { requestsDB = dataToUse; if(currentUser && currentUser.role === 'admin' && !document.getElementById('view-dashboard').classList.contains('hidden')) renderManagerDashboard(); if(currentUser && currentUser.role !== 'admin' && !document.getElementById('view-mutasistok').classList.contains('hidden')) loadMutasiDataUI(); }
         }, err => console.error(err));
     };
-    handleSync('accounts'); handleSync('menus'); handleSync('stocks'); handleSync('transactions'); handleSync('expenses'); handleSync('close_registers'); handleSync('stock_mutations'); handleSync('saved_bills'); handleSync('requests');
+
+    handleSync('accounts'); handleSync('menus'); handleSync('stocks'); 
+    handleSync('transactions'); handleSync('expenses'); handleSync('close_registers'); 
+    handleSync('stock_mutations'); handleSync('saved_bills'); handleSync('requests');
 }
+
+// Fungsi Tarik Arsip Kuno
+window.tarikDataArsip = async () => {
+    showLoading("Mengunduh Arsip Lama...\n(Ini mungkin memakan waktu)");
+    try {
+        const d = new Date(); d.setDate(d.getDate() - 30);
+        const thirtyDaysAgo = d.toISOString().split('T')[0];
+        
+        const fetchArchive = async (col) => {
+            const q = query(getColRef(col), where('tanggal', '<', thirtyDaysAgo));
+            const snap = await getDocs(q);
+            window.arsipData[col] = snap.docs.map(docItem => ({id: docItem.id, ...docItem.data()}));
+        };
+
+        await Promise.all([
+            fetchArchive('transactions'),
+            fetchArchive('expenses'),
+            fetchArchive('close_registers'),
+            fetchArchive('stock_mutations')
+        ]);
+        
+        // Gabungkan manual ke database sementara
+        transactionsDB = Array.from(new Map([...window.arsipData['transactions'], ...transactionsDB].map(item => [item.id, item])).values());
+        expensesDB = Array.from(new Map([...window.arsipData['expenses'], ...expensesDB].map(item => [item.id, item])).values());
+        closeRegistersDB = Array.from(new Map([...window.arsipData['close_registers'], ...closeRegistersDB].map(item => [item.id, item])).values());
+        mutasiDB = Array.from(new Map([...window.arsipData['stock_mutations'], ...mutasiDB].map(item => [item.id, item])).values());
+
+        // Refresh Tampilan yang Sedang Aktif
+        if(!document.getElementById('view-dashboard').classList.contains('hidden')) renderManagerDashboard();
+        if(!document.getElementById('view-laporan').classList.contains('hidden')) renderLaporanUI();
+        if(!document.getElementById('view-rekapmenu').classList.contains('hidden')) renderRekapMenuTab();
+        if(!document.getElementById('view-laporanstok').classList.contains('hidden')) renderLaporanStokUI();
+        if(!document.getElementById('view-tutupbuku').classList.contains('hidden')) renderManagerTutupBuku();
+        if(!document.getElementById('view-mutasistok').classList.contains('hidden')) renderManagerMutasi();
+        
+        showToast("Arsip Kuno Berhasil Ditarik!", "success");
+        
+        const btn = document.getElementById('btnArsipKuno');
+        if(btn) {
+            btn.innerHTML = '<i class="fas fa-check-circle text-lg"></i><span class="ml-2">ARSIP AKTIF</span>';
+            btn.classList.replace('bg-slate-900', 'bg-emerald-600');
+            btn.classList.replace('text-amber-400', 'text-white');
+            btn.classList.replace('border-slate-700', 'border-emerald-500');
+            btn.disabled = true;
+        }
+    } catch (e) {
+        console.error(e);
+        showToast("Gagal menarik arsip kuno.", "error");
+    }
+    hideLoading();
+};
 
 window.loginAs = async (username, role) => {
     if (!isCloudReady) return showToast("Mohon tunggu, sinkronisasi...", "error");
@@ -218,21 +295,43 @@ function proceedLogin(accountData) {
         const dStart = new Date(); dStart.setDate(dStart.getDate() - 6);
         document.getElementById('lsStartDate').value = dStart.toISOString().split('T')[0]; document.getElementById('lsEndDate').value = getTodayYMD();
         renderManagerDashboard(); 
-    } else if (currentUser.role === 'kasir') {
-        ['kasir', 'notatersimpan', 'laporan', 'pengeluaran', 'tutupbuku', 'kelolamenu'].forEach(t => document.getElementById(`tab-${t}`).classList.remove('hidden'));
-        window.switchTab('kasir');
-        document.getElementById('filterTglLaporan').value = getTodayYMD(); 
-        let dateInput = document.getElementById('tbInputTanggal'); if(dateInput) dateInput.value = getTodayYMD();
-        renderKategoriFilterKasir();
-        renderKasirMenu(); renderKelolaMenu(); document.getElementById('badgeSavedBills').innerText = savedBillsDB.length; document.getElementById('badgeSavedBills').classList.toggle('hidden', savedBillsDB.length === 0);
+
+        // INJEKSI TOMBOL ARSIP KUNO UNTUK MANAGER
+        if(!document.getElementById('btnArsipKuno')) {
+            const btn = document.createElement('button');
+            btn.id = 'btnArsipKuno';
+            btn.innerHTML = '<i class="fas fa-cloud-download-alt text-lg"></i><span class="ml-2">Tarik Arsip Lama</span>';
+            btn.className = 'fixed bottom-6 right-6 z-[90] bg-slate-900 text-amber-400 px-5 py-3.5 rounded-2xl shadow-[0_10px_25px_-5px_rgba(0,0,0,0.5)] font-black text-[10px] uppercase tracking-widest hover:bg-slate-800 transition transform hover:-translate-y-1 border border-slate-700 flex items-center justify-center';
+            btn.onclick = window.tarikDataArsip;
+            document.body.appendChild(btn);
+        }
     } else {
-        ['dashboardstok', 'kelolastok', 'mutasistok'].forEach(t => document.getElementById(`tab-${t}`).classList.remove('hidden'));
-        document.getElementById('filterTglMutasi').value = getTodayYMD(); window.switchTab('dashboardstok'); renderDashboardStok(); renderKelolaStok();
+        // Hapus tombol jika bukan Manager yang login
+        const btn = document.getElementById('btnArsipKuno');
+        if(btn) btn.remove();
+
+        if (currentUser.role === 'kasir') {
+            ['kasir', 'notatersimpan', 'laporan', 'pengeluaran', 'tutupbuku', 'kelolamenu'].forEach(t => document.getElementById(`tab-${t}`).classList.remove('hidden'));
+            window.switchTab('kasir');
+            document.getElementById('filterTglLaporan').value = getTodayYMD(); 
+            let dateInput = document.getElementById('tbInputTanggal'); if(dateInput) dateInput.value = getTodayYMD();
+            renderKategoriFilterKasir();
+            renderKasirMenu(); renderKelolaMenu(); document.getElementById('badgeSavedBills').innerText = savedBillsDB.length; document.getElementById('badgeSavedBills').classList.toggle('hidden', savedBillsDB.length === 0);
+        } else {
+            ['dashboardstok', 'kelolastok', 'mutasistok'].forEach(t => document.getElementById(`tab-${t}`).classList.remove('hidden'));
+            document.getElementById('filterTglMutasi').value = getTodayYMD(); window.switchTab('dashboardstok'); renderDashboardStok(); renderKelolaStok();
+        }
     }
     showToast(`Akses diberikan. Selamat bekerja, ${currentUser.nama}!`);
 }
 
-window.logout = () => { currentUser = null; window.clearCart(); document.getElementById('inputPassManager').value = ''; document.getElementById('viewLanding').classList.remove('hidden'); };
+window.logout = () => { 
+    currentUser = null; window.clearCart(); 
+    document.getElementById('inputPassManager').value = ''; 
+    document.getElementById('viewLanding').classList.remove('hidden'); 
+    const btn = document.getElementById('btnArsipKuno');
+    if(btn) btn.remove();
+};
 
 window.switchTab = (tabName) => {
     document.querySelectorAll('.tab-btn').forEach(b => { b.classList.remove('border-amber-500', 'text-amber-600'); b.classList.add('border-transparent', 'text-slate-500'); });
@@ -1270,4 +1369,4 @@ window.renderRekapMenuTab = () => {
     }
 };
 
-initApp();
+window.onload = initApp;
