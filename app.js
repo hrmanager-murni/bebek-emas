@@ -180,9 +180,10 @@ function proceedLogin(accountData) {
     allTabs.forEach(t => document.getElementById(`tab-${t}`).classList.add('hidden'));
 
     if (currentUser.role === 'admin') {
-        ['dashboard', 'rekapmenu', 'laporan', 'tutupbuku', 'kelolastok', 'mutasistok', 'laporanstok'].forEach(t => document.getElementById(`tab-${t}`).classList.remove('hidden'));
+        // HAPUS 'laporan' dari akses menu Manager
+        ['dashboard', 'rekapmenu', 'tutupbuku', 'kelolastok', 'mutasistok', 'laporanstok'].forEach(t => document.getElementById(`tab-${t}`).classList.remove('hidden'));
         window.switchTab('dashboard');
-        document.getElementById('filterTglLaporan').value = getTodayYMD(); document.getElementById('dashStartDate').value = getTodayYMD(); document.getElementById('dashEndDate').value = getTodayYMD();
+        document.getElementById('dashStartDate').value = getTodayYMD(); document.getElementById('dashEndDate').value = getTodayYMD();
         document.getElementById('rmStartDate').value = getTodayYMD(); document.getElementById('rmEndDate').value = getTodayYMD();
         const dStart = new Date(); dStart.setDate(dStart.getDate() - 6); document.getElementById('lsStartDate').value = dStart.toISOString().split('T')[0]; document.getElementById('lsEndDate').value = getTodayYMD();
         
@@ -224,17 +225,11 @@ window.closeDiscountModal = () => document.getElementById('modalDiskon').classLi
 window.setDiscountType = (type) => { discountInfo.type = type; document.getElementById('btnDiscPercent').className = type === '%' ? 'flex-1 py-2 rounded-lg text-xs font-black bg-white shadow-sm text-rose-600 transition' : 'flex-1 py-2 rounded-lg text-xs font-black text-slate-500 hover:text-slate-700 transition'; document.getElementById('btnDiscNominal').className = type === 'Rp' ? 'flex-1 py-2 rounded-lg text-xs font-black bg-white shadow-sm text-rose-600 transition' : 'flex-1 py-2 rounded-lg text-xs font-black text-slate-500 hover:text-slate-700 transition'; };
 window.applyDiscount = () => { discountInfo.value = getCleanNumber(document.getElementById('inputDiscountVal').value); window.closeDiscountModal(); window.renderCart(); };
 
-// FEEDBACK 4: AUTO FILL NAMA PELANGGAN SAAT TUNDA NOTA
 window.bukaModalSimpanNota = () => { 
     if(cart.length === 0) return showToast("Pesanan kosong!", "error"); 
-    let cust = document.getElementById('cartCustomer').value;
-    let meja = document.getElementById('cartMeja').value;
-    let autoName = "";
-    if(cust && meja) autoName = cust + " - " + meja;
-    else if (cust) autoName = cust;
-    else if (meja) autoName = "Meja " + meja;
-    document.getElementById('inputParkName').value = autoName; 
-    document.getElementById('modalParkBill').classList.remove('hidden'); 
+    let cust = document.getElementById('cartCustomer').value; let meja = document.getElementById('cartMeja').value; let autoName = "";
+    if(cust && meja) autoName = cust + " - " + meja; else if (cust) autoName = cust; else if (meja) autoName = "Meja " + meja;
+    document.getElementById('inputParkName').value = autoName; document.getElementById('modalParkBill').classList.remove('hidden'); 
 };
 
 window.closeParkModal = () => document.getElementById('modalParkBill').classList.add('hidden');
@@ -293,108 +288,60 @@ window.renderCart = () => {
     });
     discountInfo.amount = discountInfo.type === '%' ? (subtotalCart * (discountInfo.value / 100)) : discountInfo.value; if(discountInfo.amount > subtotalCart) discountInfo.amount = subtotalCart;
     
-    let totalAfterDisc = subtotalCart - discountInfo.amount;
-    let finalTotal = totalAfterDisc;
-    
+    let totalAfterDisc = subtotalCart - discountInfo.amount; let finalTotal = totalAfterDisc;
     if(tipeOrder === 'Gojek') { const gojekInfo = getGojekFee(totalAfterDisc); finalTotal = gojekInfo.finalTotal; }
 
-    document.getElementById('cartDiscountText').innerText = `- ${formatIDR(discountInfo.amount)}`; 
-    document.getElementById('cartTotalText').innerText = formatIDR(finalTotal);
+    document.getElementById('cartDiscountText').innerText = `- ${formatIDR(discountInfo.amount)}`; document.getElementById('cartTotalText').innerText = formatIDR(finalTotal);
 };
 
-// FEEDBACK 3: MIX PAYMENT
 window.bukaMixPay = () => {
     if(cart.length === 0) return showToast("Keranjang kosong!", "error");
-    let totalAfterDisc = subtotalCart - discountInfo.amount;
-    if (tipeOrder === 'Gojek') { const g = getGojekFee(totalAfterDisc); totalAfterDisc = g.finalTotal; }
-    
-    document.getElementById('mixTotalTagihan').innerText = formatIDR(totalAfterDisc);
-    document.getElementById('mixInputCash').value = '';
-    document.getElementById('mixSisaTf').innerText = formatIDR(totalAfterDisc);
-    document.getElementById('modalMixPay').classList.remove('hidden');
+    let totalAfterDisc = subtotalCart - discountInfo.amount; if (tipeOrder === 'Gojek') { const g = getGojekFee(totalAfterDisc); totalAfterDisc = g.finalTotal; }
+    document.getElementById('mixTotalTagihan').innerText = formatIDR(totalAfterDisc); document.getElementById('mixInputCash').value = ''; document.getElementById('mixSisaTf').innerText = formatIDR(totalAfterDisc); document.getElementById('modalMixPay').classList.remove('hidden');
 };
 
 window.hitungMixTf = () => {
-    let totalAfterDisc = subtotalCart - discountInfo.amount;
-    if (tipeOrder === 'Gojek') { const g = getGojekFee(totalAfterDisc); totalAfterDisc = g.finalTotal; }
-    let cashPay = getCleanNumber(document.getElementById('mixInputCash').value);
-    let sisa = totalAfterDisc - cashPay;
-    if (sisa < 0) sisa = 0;
-    document.getElementById('mixSisaTf').innerText = formatIDR(sisa);
+    let totalAfterDisc = subtotalCart - discountInfo.amount; if (tipeOrder === 'Gojek') { const g = getGojekFee(totalAfterDisc); totalAfterDisc = g.finalTotal; }
+    let cashPay = getCleanNumber(document.getElementById('mixInputCash').value); let sisa = totalAfterDisc - cashPay; if (sisa < 0) sisa = 0; document.getElementById('mixSisaTf').innerText = formatIDR(sisa);
 };
 
 window.prosesMixPay = () => {
-    let cashPay = getCleanNumber(document.getElementById('mixInputCash').value);
-    let totalAfterDisc = subtotalCart - discountInfo.amount;
-    if (tipeOrder === 'Gojek') { const g = getGojekFee(totalAfterDisc); totalAfterDisc = g.finalTotal; }
-    let tfPay = totalAfterDisc - cashPay;
-    
-    if (cashPay <= 0 || tfPay <= 0) return showToast("Masukan Nominal Mix Pay Tidak Valid!", "error");
-    document.getElementById('modalMixPay').classList.add('hidden');
-    prosesBayar('MIX', cashPay, tfPay);
+    let cashPay = getCleanNumber(document.getElementById('mixInputCash').value); let totalAfterDisc = subtotalCart - discountInfo.amount; if (tipeOrder === 'Gojek') { const g = getGojekFee(totalAfterDisc); totalAfterDisc = g.finalTotal; }
+    let tfPay = totalAfterDisc - cashPay; if (cashPay <= 0 || tfPay <= 0) return showToast("Masukan Nominal Mix Pay Tidak Valid!", "error"); document.getElementById('modalMixPay').classList.add('hidden'); prosesBayar('MIX', cashPay, tfPay);
 };
 
-// Update prosesBayar to accept mix parameters
 window.prosesBayar = async (metode, mixCash = 0, mixTf = 0) => {
     if (!auth.currentUser) return showToast("Sistem offline.", "error"); if (cart.length === 0) return showToast('Keranjang kosong!', 'error'); showLoading("Menyimpan...");
     
-    let totalAfterDisc = subtotalCart - discountInfo.amount;
-    let finalNetTotal = totalAfterDisc; let gojekFee = 0;
-    if (tipeOrder === 'Gojek') { const g = getGojekFee(totalAfterDisc); finalNetTotal = g.finalTotal; gojekFee = g.fee; }
-    
+    let totalAfterDisc = subtotalCart - discountInfo.amount; let finalNetTotal = totalAfterDisc; let gojekFee = 0; if (tipeOrder === 'Gojek') { const g = getGojekFee(totalAfterDisc); finalNetTotal = g.finalTotal; gojekFee = g.fee; }
     const dateStr = getTodayYMD(); const todayTrx = transactionsDB.filter(t => t.tanggal === dateStr); const noNota = (todayTrx.length + 1).toString().padStart(2, '0');
     
     const payload = { waktu: getTimestampStr(), tanggal: dateStr, timestamp: Date.now(), kasir: (currentUser.nama === 'Manager Executive' ? 'Manager (Bantuan Kasir)' : currentUser.nama), tipeOrder: tipeOrder, pembayaran: metode, total: finalNetTotal, totalBayar: totalAfterDisc, subtotal: subtotalCart, diskonRp: discountInfo.amount, gojekFee: gojekFee, cart: cart, customer: document.getElementById('cartCustomer').value || 'Umum', meja: document.getElementById('cartMeja').value || '-', noNota: noNota, status: 'Aktif', discountInfo: discountInfo };
-    
-    // Simpan rincian nominal jika metode MIX
-    if (metode === 'MIX') {
-        payload.mixCash = mixCash;
-        payload.mixTf = mixTf;
-    }
+    if (metode === 'MIX') { payload.mixCash = mixCash; payload.mixTf = mixTf; }
 
     try {
-        await addDoc(getColRef('transactions'), payload);
-        let itemsTerjual = {}; cart.forEach(c => { itemsTerjual[c.nama.toLowerCase()] = (itemsTerjual[c.nama.toLowerCase()] || 0) + c.qty; });
-        for (let stok of stocksDB) {
-            if (!stok.menuTerkait) continue; const menusTerkait = stok.menuTerkait.split(',').map(m => m.trim().toLowerCase()); let totalPotong = 0;
-            for (let nama in itemsTerjual) { if (menusTerkait.includes(nama)) totalPotong += itemsTerjual[nama]; }
-            if (totalPotong > 0) { await setDoc(getDocRef('stocks', stok.id), { stokSaatIni: formatDec((parseFloat(stok.stokSaatIni)||0) - totalPotong) }, { merge: true }); }
-        }
-        hideLoading(); showToast('Transaksi Berhasil!'); 
-        window.lastPrintedPayload = payload; cetakStrukPreview(payload); window.clearCart();
+        await addDoc(getColRef('transactions'), payload); let itemsTerjual = {}; cart.forEach(c => { itemsTerjual[c.nama.toLowerCase()] = (itemsTerjual[c.nama.toLowerCase()] || 0) + c.qty; });
+        for (let stok of stocksDB) { if (!stok.menuTerkait) continue; const menusTerkait = stok.menuTerkait.split(',').map(m => m.trim().toLowerCase()); let totalPotong = 0; for (let nama in itemsTerjual) { if (menusTerkait.includes(nama)) totalPotong += itemsTerjual[nama]; } if (totalPotong > 0) { await setDoc(getDocRef('stocks', stok.id), { stokSaatIni: formatDec((parseFloat(stok.stokSaatIni)||0) - totalPotong) }, { merge: true }); } }
+        hideLoading(); showToast('Transaksi Berhasil!'); window.lastPrintedPayload = payload; cetakStrukPreview(payload); window.clearCart();
     } catch (err) { console.error(err); hideLoading(); showToast('Gagal memproses.', 'error'); }
 };
 
 function cetakStrukPreview(payload) {
     document.getElementById('strukNota').innerText = "Nota: #" + payload.noNota; document.getElementById('strukWaktu').innerText = payload.waktu; document.getElementById('strukKasir').innerText = "Kasir: " + payload.kasir; document.getElementById('strukCustomerDetail').innerText = `${payload.customer} / ${payload.meja}`; document.getElementById('strukTipe').innerText = payload.tipeOrder; 
-    
-    if(payload.pembayaran === 'MIX') document.getElementById('strukMetode').innerText = `MIX (C: ${formatIDRPlain(payload.mixCash)} / T: ${formatIDRPlain(payload.mixTf)})`;
-    else document.getElementById('strukMetode').innerText = payload.pembayaran;
-
-    const itemsContainer = document.getElementById('strukItems'); itemsContainer.innerHTML = '';
-    payload.cart.forEach(item => { const harga = payload.tipeOrder === 'DineIn' ? item.hargaDineIn : item.hargaGojek; itemsContainer.innerHTML += `<div class="flex justify-between items-start"><span class="max-w-[160px] leading-tight">${item.nama} <span class="lowercase text-slate-400 font-bold">x${item.qty}</span></span><span class="font-bold">${formatIDR(harga * item.qty)}</span></div>`; });
-    
+    if(payload.pembayaran === 'MIX') document.getElementById('strukMetode').innerText = `MIX (C: ${formatIDRPlain(payload.mixCash)} / T: ${formatIDRPlain(payload.mixTf)})`; else document.getElementById('strukMetode').innerText = payload.pembayaran;
+    const itemsContainer = document.getElementById('strukItems'); itemsContainer.innerHTML = ''; payload.cart.forEach(item => { const harga = payload.tipeOrder === 'DineIn' ? item.hargaDineIn : item.hargaGojek; itemsContainer.innerHTML += `<div class="flex justify-between items-start"><span class="max-w-[160px] leading-tight">${item.nama} <span class="lowercase text-slate-400 font-bold">x${item.qty}</span></span><span class="font-bold">${formatIDR(harga * item.qty)}</span></div>`; });
     document.getElementById('strukSubtotal').innerText = formatIDR(payload.subtotal); document.getElementById('strukDiskon').innerText = `- ${formatIDR(payload.diskonRp)}`; 
-    
-    if(payload.tipeOrder === 'Gojek' && payload.gojekFee) { document.getElementById('strukGojekRow').classList.remove('hidden'); document.getElementById('strukGojekFee').innerText = `- ${formatIDR(payload.gojekFee)}`; } 
-    else { document.getElementById('strukGojekRow').classList.add('hidden'); }
-
-    let totalCetak = payload.totalBayar !== undefined ? payload.totalBayar : (payload.subtotal - payload.diskonRp);
-    document.getElementById('strukTotal').innerText = formatIDR(totalCetak); document.getElementById('modalStruk').classList.remove('hidden');
+    if(payload.tipeOrder === 'Gojek' && payload.gojekFee) { document.getElementById('strukGojekRow').classList.remove('hidden'); document.getElementById('strukGojekFee').innerText = `- ${formatIDR(payload.gojekFee)}`; } else { document.getElementById('strukGojekRow').classList.add('hidden'); }
+    let totalCetak = payload.totalBayar !== undefined ? payload.totalBayar : (payload.subtotal - payload.diskonRp); document.getElementById('strukTotal').innerText = formatIDR(totalCetak); document.getElementById('modalStruk').classList.remove('hidden');
 }
 
 let editingTrxId = null; let originalTrxData = null;
-
 window.editNotaManager = (id) => {
     const trx = transactionsDB.find(t => t.id === id); if (!trx) return;
-    editingTrxId = id; originalTrxData = JSON.parse(JSON.stringify(trx)); 
-    cart = JSON.parse(JSON.stringify(trx.cart)); tipeOrder = trx.tipeOrder; discountInfo = trx.discountInfo || { type: 'Rp', value: trx.diskonRp || 0, amount: trx.diskonRp || 0 };
-    document.getElementById('cartCustomer').value = trx.customer; document.getElementById('cartMeja').value = trx.meja;
-    document.getElementById('editMetodeBayar').value = trx.pembayaran || 'CASH'; // Note: MIX payment edit defaults to CASH for simplicity to avoid complex re-split UI.
-    
+    editingTrxId = id; originalTrxData = JSON.parse(JSON.stringify(trx)); cart = JSON.parse(JSON.stringify(trx.cart)); tipeOrder = trx.tipeOrder; discountInfo = trx.discountInfo || { type: 'Rp', value: trx.diskonRp || 0, amount: trx.diskonRp || 0 };
+    document.getElementById('cartCustomer').value = trx.customer; document.getElementById('cartMeja').value = trx.meja; document.getElementById('editMetodeBayar').value = trx.pembayaran || 'CASH'; 
     setTipeOrder(tipeOrder); renderCart(); document.getElementById('titleKeranjang').innerText = "EDIT NOTA #" + trx.noNota;
-    document.getElementById('bayarNormalDiv').classList.add('hidden'); document.getElementById('bayarEditDiv').classList.remove('hidden'); document.getElementById('view-laporan').classList.add('hidden'); document.getElementById('view-kasir').classList.remove('hidden');
-    showToast("Mode Edit Nota Aktif", "info");
+    document.getElementById('bayarNormalDiv').classList.add('hidden'); document.getElementById('bayarEditDiv').classList.remove('hidden'); document.getElementById('view-laporan').classList.add('hidden'); document.getElementById('view-kasir').classList.remove('hidden'); showToast("Mode Edit Nota Aktif", "info");
 };
 
 window.batalEditNota = () => { editingTrxId = null; originalTrxData = null; document.getElementById('titleKeranjang').innerText = "Pesanan"; clearCart(); document.getElementById('bayarNormalDiv').classList.remove('hidden'); document.getElementById('bayarEditDiv').classList.add('hidden'); document.getElementById('view-kasir').classList.add('hidden'); document.getElementById('view-laporan').classList.remove('hidden'); };
@@ -402,17 +349,10 @@ window.batalEditNota = () => { editingTrxId = null; originalTrxData = null; docu
 window.simpanEditNota = async () => {
     if (!editingTrxId) return; showLoading("Menyimpan Perubahan...");
     let totalAfterDisc = subtotalCart - discountInfo.amount; let finalNetTotal = totalAfterDisc; let gojekFee = 0; if(tipeOrder === 'Gojek') { const g = getGojekFee(totalAfterDisc); finalNetTotal = g.finalTotal; gojekFee = g.fee; }
-    
     const payload = { total: finalNetTotal, totalBayar: totalAfterDisc, subtotal: subtotalCart, diskonRp: discountInfo.amount, gojekFee: gojekFee, cart: cart, customer: document.getElementById('cartCustomer').value || 'Umum', meja: document.getElementById('cartMeja').value || '-', tipeOrder: tipeOrder, discountInfo: discountInfo, pembayaran: document.getElementById('editMetodeBayar').value };
     try {
-        let oldItems = {}; originalTrxData.cart.forEach(c => oldItems[c.nama.toLowerCase()] = (oldItems[c.nama.toLowerCase()] || 0) + c.qty);
-        let newItems = {}; cart.forEach(c => newItems[c.nama.toLowerCase()] = (newItems[c.nama.toLowerCase()] || 0) + c.qty);
-        for (let stok of stocksDB) {
-            if (!stok.menuTerkait) continue; const menusTerkait = stok.menuTerkait.split(',').map(m => m.trim().toLowerCase());
-            let qtyDikembalikan = 0; let qtyDiambil = 0; menusTerkait.forEach(m => { if (oldItems[m]) qtyDikembalikan += oldItems[m]; if (newItems[m]) qtyDiambil += newItems[m]; });
-            let selisih = qtyDiambil - qtyDikembalikan;
-            if (selisih !== 0) { let currentStock = parseFloat(stok.stokSaatIni) || 0; await setDoc(getDocRef('stocks', stok.id), { stokSaatIni: formatDec(currentStock - selisih) }, { merge: true }); }
-        }
+        let oldItems = {}; originalTrxData.cart.forEach(c => oldItems[c.nama.toLowerCase()] = (oldItems[c.nama.toLowerCase()] || 0) + c.qty); let newItems = {}; cart.forEach(c => newItems[c.nama.toLowerCase()] = (newItems[c.nama.toLowerCase()] || 0) + c.qty);
+        for (let stok of stocksDB) { if (!stok.menuTerkait) continue; const menusTerkait = stok.menuTerkait.split(',').map(m => m.trim().toLowerCase()); let qtyDikembalikan = 0; let qtyDiambil = 0; menusTerkait.forEach(m => { if (oldItems[m]) qtyDikembalikan += oldItems[m]; if (newItems[m]) qtyDiambil += newItems[m]; }); let selisih = qtyDiambil - qtyDikembalikan; if (selisih !== 0) { let currentStock = parseFloat(stok.stokSaatIni) || 0; await setDoc(getDocRef('stocks', stok.id), { stokSaatIni: formatDec(currentStock - selisih) }, { merge: true }); } }
         await setDoc(getDocRef('transactions', editingTrxId), payload, { merge: true }); hideLoading(); showToast("Nota Berhasil Diupdate!", "success"); window.batalEditNota();
     } catch (err) { console.error(err); hideLoading(); showToast("Gagal update nota", "error"); }
 };
@@ -420,249 +360,104 @@ window.simpanEditNota = async () => {
 window.renderLaporanUI = () => {
     const filterTgl = document.getElementById('filterTglLaporan').value; const filterTipe = document.getElementById('filterTipeLaporan') ? document.getElementById('filterTipeLaporan').value : 'ALL'; const filterMetode = document.getElementById('filterMetodeLaporan') ? document.getElementById('filterMetodeLaporan').value : 'ALL';
     if(!filterTgl) return; let totCash = 0, totTF = 0, countNota = 0; const tbl = document.getElementById('tblLaporanTrx'); tbl.innerHTML = '';
-    
     let angsulanAwal = 0; let repKemarinId = null; const d = new Date(filterTgl); d.setDate(d.getDate() - 1); const yesterdayStr = d.toISOString().split('T')[0]; const repKemarin = closeRegistersDB.find(c => c.tanggal === yesterdayStr); if(repKemarin) { angsulanAwal = repKemarin.angsulanDitinggal || 0; repKemarinId = repKemarin.id; }
-    
     if (currentUser && currentUser.role === 'admin') { document.getElementById('totLaporanAngsulanText').classList.add('hidden'); document.getElementById('inputAngsulanLaporan').classList.remove('hidden'); document.getElementById('inputAngsulanLaporan').value = angsulanAwal ? angsulanAwal.toLocaleString('id-ID') : ''; document.getElementById('inputAngsulanLaporan').dataset.repid = repKemarinId || ''; document.getElementById('inputAngsulanLaporan').dataset.yesterday = yesterdayStr; } else { document.getElementById('totLaporanAngsulanText').classList.remove('hidden'); document.getElementById('inputAngsulanLaporan').classList.add('hidden'); document.getElementById('totLaporanAngsulanText').innerText = formatIDR(angsulanAwal); }
 
     let filteredTrx = transactionsDB.filter(t => t.tanggal === filterTgl && t.status === 'Aktif');
-    if(filterTipe !== 'ALL') filteredTrx = filteredTrx.filter(t => t.tipeOrder === filterTipe);
-    if(filterMetode !== 'ALL') filteredTrx = filteredTrx.filter(t => t.pembayaran === filterMetode || (filterMetode === 'MIX' && t.pembayaran === 'MIX'));
+    if(filterTipe !== 'ALL') filteredTrx = filteredTrx.filter(t => t.tipeOrder === filterTipe); if(filterMetode !== 'ALL') filteredTrx = filteredTrx.filter(t => t.pembayaran === filterMetode || (filterMetode === 'MIX' && t.pembayaran === 'MIX'));
 
     filteredTrx.sort((a,b) => b.timestamp - a.timestamp).forEach(item => {
-        countNota++; 
-        // Penyesuaian Penambahan Nilai MIX Pay
-        if (item.pembayaran === 'CASH') totCash += item.total; 
-        else if (item.pembayaran === 'TRANSFER') totTF += item.total;
-        else if (item.pembayaran === 'MIX') { totCash += (item.mixCash || 0); totTF += (item.mixTf || 0); }
-        
+        countNota++; if (item.pembayaran === 'CASH') totCash += item.total; else if (item.pembayaran === 'TRANSFER') totTF += item.total; else if (item.pembayaran === 'MIX') { totCash += (item.mixCash || 0); totTF += (item.mixTf || 0); }
         let btnEdit = ''; if (currentUser && ['admin','kasir'].includes(currentUser.role)) { btnEdit = `<button onclick="editNotaManager('${item.id}')" title="Edit Nota" class="w-8 h-8 text-blue-500 hover:text-white hover:bg-blue-500 rounded-xl transition shadow-sm border border-blue-100 mr-1"><i class="fas fa-edit text-[10px]"></i></button>`; }
-        let gojekTag = item.gojekFee > 0 ? `<br><span class="text-[9px] text-rose-500 bg-rose-50 px-1 rounded inline-block mt-0.5 border border-rose-100">Pot. App: -${formatIDRPlain(item.gojekFee)}</span>` : '';
-        let payBadgeColor = item.pembayaran === 'CASH' ? 'bg-emerald-100 text-emerald-700' : (item.pembayaran === 'MIX' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700');
-
+        let gojekTag = item.gojekFee > 0 ? `<br><span class="text-[9px] text-rose-500 bg-rose-50 px-1 rounded inline-block mt-0.5 border border-rose-100">Pot. App: -${formatIDRPlain(item.gojekFee)}</span>` : ''; let payBadgeColor = item.pembayaran === 'CASH' ? 'bg-emerald-100 text-emerald-700' : (item.pembayaran === 'MIX' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700');
         tbl.innerHTML += `<tr class="hover:bg-slate-50 transition border-b border-slate-50"><td class="p-4 pl-5 font-black text-slate-800">#${item.noNota}</td><td class="p-4 text-slate-500 font-bold">${item.waktu.substring(11, 16)}</td><td class="p-4 font-black">${item.customer} <span class="text-[9px] text-slate-400 uppercase">(${item.meja})</span></td><td class="p-4 text-xs font-bold text-slate-600">${item.kasir.split(' ')[0]}</td><td class="p-4 text-center"><span class="px-2 py-1 rounded-md text-[9px] font-black tracking-widest ${payBadgeColor}">${item.pembayaran}</span><span class="block mt-1 text-[9px] text-slate-400 font-bold uppercase tracking-widest">${item.tipeOrder}</span></td><td class="p-4 text-right font-black tracking-tight text-slate-800">${formatIDR(item.total)}${gojekTag}</td><td class="p-4 text-center whitespace-nowrap"><button onclick="window.lastPrintedPayload = transactionsDB.find(t=>t.id==='${item.id}'); cetakStrukPreview(window.lastPrintedPayload);" title="Print Ulang" class="w-8 h-8 text-emerald-500 hover:text-white hover:bg-emerald-500 rounded-xl transition shadow-sm border border-emerald-100 mr-1"><i class="fas fa-print text-[10px]"></i></button>${btnEdit}<button onclick="hapusNota('${item.id}')" class="w-8 h-8 text-rose-400 hover:text-white hover:bg-rose-500 rounded-xl transition shadow-sm border border-rose-100"><i class="fas fa-trash-alt text-[10px]"></i></button></td></tr>`;
     });
     document.getElementById('totLaporanCash').innerText = formatIDR(totCash); document.getElementById('totLaporanTF').innerText = formatIDR(totTF); document.getElementById('totLaporanOmset').innerText = formatIDR(totCash + totTF);
 };
 
-window.hapusNota = (id) => { window.showModal("Batalkan Transaksi", "Nota akan di-Void dan stok barang akan otomatis dikembalikan ke gudang. Lanjutkan?", async () => { if(!auth.currentUser) return; showLoading("Membatalkan & Mengembalikan Stok..."); try { const trx = transactionsDB.find(t => t.id === id); if(trx && trx.status === 'Aktif') { let itemsDikembalikan = {}; trx.cart.forEach(c => { itemsDikembalikan[c.nama.toLowerCase()] = (itemsDikembalikan[c.nama.toLowerCase()] || 0) + c.qty; }); for (let stok of stocksDB) { if (!stok.menuTerkait) continue; const menusTerkait = stok.menuTerkait.split(',').map(m => m.trim().toLowerCase()); let totalKembali = 0; for (let nama in itemsDikembalikan) { if (menusTerkait.includes(nama)) totalKembali += itemsDikembalikan[nama]; } if (totalKembali > 0) { let currentStock = parseFloat(stok.stokSaatIni) || 0; await setDoc(getDocRef('stocks', stok.id), { stokSaatIni: formatDec(currentStock + totalKembali) }, { merge: true }); } } } await setDoc(getDocRef('transactions', id), { status: 'Batal/Void' }, { merge: true }); hideLoading(); showToast("Nota Dibatalkan & Stok Kembali!", "success"); } catch(err) { console.error(err); hideLoading(); showToast("Gagal membatalkan", "error"); } }); };
-
+window.hapusNota = (id) => { window.showModal("Batalkan Transaksi", "Nota akan di-Void dan stok barang otomatis dikembalikan ke gudang. Lanjutkan?", async () => { if(!auth.currentUser) return; showLoading("Membatalkan..."); try { const trx = transactionsDB.find(t => t.id === id); if(trx && trx.status === 'Aktif') { let itemsDikembalikan = {}; trx.cart.forEach(c => { itemsDikembalikan[c.nama.toLowerCase()] = (itemsDikembalikan[c.nama.toLowerCase()] || 0) + c.qty; }); for (let stok of stocksDB) { if (!stok.menuTerkait) continue; const menusTerkait = stok.menuTerkait.split(',').map(m => m.trim().toLowerCase()); let totalKembali = 0; for (let nama in itemsDikembalikan) { if (menusTerkait.includes(nama)) totalKembali += itemsDikembalikan[nama]; } if (totalKembali > 0) { let currentStock = parseFloat(stok.stokSaatIni) || 0; await setDoc(getDocRef('stocks', stok.id), { stokSaatIni: formatDec(currentStock + totalKembali) }, { merge: true }); } } } await setDoc(getDocRef('transactions', id), { status: 'Batal/Void' }, { merge: true }); hideLoading(); showToast("Nota Dibatalkan & Stok Kembali!", "success"); } catch(err) { console.error(err); hideLoading(); showToast("Gagal membatalkan", "error"); } }); };
 window.updateAngsulanAwalLaporan = async (val) => { if(currentUser.role !== 'admin') return; const el = document.getElementById('inputAngsulanLaporan'); const repId = el.dataset.repid; const yesterdayStr = el.dataset.yesterday; const newVal = getCleanNumber(val); showLoading("Update Angsulan..."); try { if (repId) { await setDoc(getDocRef('close_registers', repId), { angsulanDitinggal: newVal }, { merge: true }); } else { await addDoc(getColRef('close_registers'), { tanggal: yesterdayStr, angsulanDitinggal: newVal, timestamp: Date.now(), kasir: 'Manager Update' }); } showToast("Angsulan Laci Diperbarui"); } catch (e) { console.error(e); showToast("Gagal update angsulan", "error"); } hideLoading(); };
-
 window.renderPengeluaranUI = () => { let totOut = 0; const tbl = document.getElementById('tblPengeluaran'); tbl.innerHTML = ''; expensesDB.filter(e => e.tanggal === getTodayYMD()).sort((a,b) => b.timestamp - a.timestamp).forEach(o => { totOut += o.nominal; tbl.innerHTML += `<tr class="hover:bg-slate-50 transition border-b border-slate-50"><td class="p-4 pl-5 text-slate-500 font-bold">${o.waktu.substring(11,16)}</td><td class="p-4 font-black text-slate-800">${o.deskripsi}</td><td class="p-4 text-right font-black text-rose-600 tracking-tight">${formatIDR(o.nominal)}</td><td class="p-4 text-center"><button onclick="hapusPengeluaran('${o.id}')" class="text-rose-400 hover:text-rose-600"><i class="fas fa-times"></i></button></td></tr>`; }); document.getElementById('totOutHarian').innerText = "Total: " + formatIDR(totOut); };
 window.simpanPengeluaran = async () => { if(!auth.currentUser) return; const deskripsi = document.getElementById('outDeskripsi').value; const nominal = getCleanNumber(document.getElementById('outNominal').value); if (!deskripsi || nominal <= 0) return showToast('Isi form dengan benar!', 'error'); await addDoc(getColRef('expenses'), { waktu: getTimestampStr(), tanggal: getTodayYMD(), timestamp: Date.now(), kasir: currentUser.nama, deskripsi: deskripsi, nominal: nominal }); document.getElementById('outDeskripsi').value = ''; document.getElementById('outNominal').value = ''; showToast("Pengeluaran dicatat."); };
 window.hapusPengeluaran = async (id) => { if(!auth.currentUser) return; await deleteDoc(getDocRef('expenses', id)); };
 
 let tbGlobal = { cash: 0, tf: 0, out: 0, angsulanAwal: 0 };
-
 window.renderTutupBukuUI = () => {
     if(currentUser && currentUser.role === 'admin') {
         document.getElementById('tb-kasir-view').classList.add('hidden'); document.getElementById('tb-manager-view').classList.remove('hidden');
-        if(!document.getElementById('filterTbManager').value) {
-            const d = new Date(); document.getElementById('filterTbManager').value = `${d.getFullYear()}-${(d.getMonth()+1).toString().padStart(2,'0')}`;
-        }
-        window.renderManagerTutupBuku();
+        if(!document.getElementById('filterTbManager').value) { const d = new Date(); document.getElementById('filterTbManager').value = `${d.getFullYear()}-${(d.getMonth()+1).toString().padStart(2,'0')}`; } window.renderManagerTutupBuku();
     } else {
         document.getElementById('tb-manager-view').classList.add('hidden'); document.getElementById('tb-kasir-view').classList.remove('hidden');
         let dateInput = document.getElementById('tbInputTanggal'); if(!dateInput.value) dateInput.value = getTodayYMD(); const selectedDate = dateInput.value;
-
         tbGlobal.cash = 0; tbGlobal.tf = 0; tbGlobal.out = 0;
-        
-        transactionsDB.filter(t => t.tanggal === selectedDate && t.status === 'Aktif').forEach(t => { 
-            if(t.pembayaran === 'CASH') tbGlobal.cash += t.total; 
-            else if(t.pembayaran === 'TRANSFER') tbGlobal.tf += t.total; 
-            else if(t.pembayaran === 'MIX') { tbGlobal.cash += (t.mixCash || 0); tbGlobal.tf += (t.mixTf || 0); }
-        });
+        transactionsDB.filter(t => t.tanggal === selectedDate && t.status === 'Aktif').forEach(t => { if(t.pembayaran === 'CASH') tbGlobal.cash += t.total; else if(t.pembayaran === 'TRANSFER') tbGlobal.tf += t.total; else if(t.pembayaran === 'MIX') { tbGlobal.cash += (t.mixCash || 0); tbGlobal.tf += (t.mixTf || 0); } });
         expensesDB.filter(e => e.tanggal === selectedDate).forEach(e => { tbGlobal.out += e.nominal; });
-        
         tbGlobal.angsulanAwal = 0; const d = new Date(selectedDate); d.setDate(d.getDate() - 1); const yesterdayStr = d.toISOString().split('T')[0]; const repKemarin = closeRegistersDB.find(c => c.tanggal === yesterdayStr); if(repKemarin) tbGlobal.angsulanAwal = repKemarin.angsulanDitinggal || 0;
-        
-        document.getElementById('tbAngsulanAwalText').innerText = formatIDR(tbGlobal.angsulanAwal); document.getElementById('tbTotalCash').innerText = "+ " + formatIDR(tbGlobal.cash); document.getElementById('tbTotalTF').innerText = "+ " + formatIDR(tbGlobal.tf); document.getElementById('tbTotalOut').innerText = "- " + formatIDR(tbGlobal.out); 
-        window.hitungSetoran();
+        document.getElementById('tbAngsulanAwalText').innerText = formatIDR(tbGlobal.angsulanAwal); document.getElementById('tbTotalCash').innerText = "+ " + formatIDR(tbGlobal.cash); document.getElementById('tbTotalTF').innerText = "+ " + formatIDR(tbGlobal.tf); document.getElementById('tbTotalOut').innerText = "- " + formatIDR(tbGlobal.out); window.hitungSetoran();
 
-        // Cek Status Kunci Tutup Buku Kasir
-        const existing = closeRegistersDB.find(c => c.tanggal === selectedDate && c.kasir === currentUser.nama);
-        const btnSubmit = document.getElementById('btnSubmitTb');
-        const alertLock = document.getElementById('tbLockAlert');
-        
-        if (existing) {
-            if (!existing.isUnlocked) {
-                btnSubmit.classList.add('hidden'); alertLock.classList.remove('hidden');
-                alertLock.innerHTML = '<i class="fas fa-lock mr-2"></i> Laporan hari ini sudah disubmit & dikunci.';
-                alertLock.className = 'bg-slate-100 text-slate-500 font-bold text-xs p-3 rounded-xl text-center mb-4 border border-slate-200';
-            } else {
-                btnSubmit.classList.remove('hidden'); alertLock.classList.remove('hidden');
-                btnSubmit.innerHTML = '<i class="fas fa-edit"></i><span>Kunci & Submit Revisi</span>';
-                btnSubmit.className = 'w-full py-4 bg-amber-500 hover:bg-amber-600 text-slate-900 font-black text-sm uppercase tracking-widest rounded-xl shadow-xl transition transform hover:-translate-y-1 relative z-10 flex items-center justify-center space-x-2';
-                alertLock.innerHTML = '<i class="fas fa-unlock mr-2"></i> Mode Revisi Aktif. Silakan update angka fisik.';
-                alertLock.className = 'bg-blue-50 text-blue-600 font-bold text-xs p-3 rounded-xl text-center mb-4 border border-blue-200';
-            }
-        } else {
-            btnSubmit.classList.remove('hidden'); alertLock.classList.add('hidden');
-            btnSubmit.innerHTML = '<i class="fas fa-paper-plane"></i><span>Submit Tutup Buku</span>';
-            btnSubmit.className = 'w-full py-4 bg-slate-900 hover:bg-slate-800 text-amber-400 font-black text-sm uppercase tracking-widest rounded-xl shadow-xl transition transform hover:-translate-y-1 relative z-10 flex items-center justify-center space-x-2';
-        }
+        const existing = closeRegistersDB.find(c => c.tanggal === selectedDate && c.kasir === currentUser.nama); const btnSubmit = document.getElementById('btnSubmitTb'); const alertLock = document.getElementById('tbLockAlert');
+        if (existing) { if (!existing.isUnlocked) { btnSubmit.classList.add('hidden'); alertLock.classList.remove('hidden'); alertLock.innerHTML = '<i class="fas fa-lock mr-2"></i> Laporan hari ini sudah disubmit & dikunci.'; alertLock.className = 'bg-slate-100 text-slate-500 font-bold text-xs p-3 rounded-xl text-center mb-4 border border-slate-200'; } else { btnSubmit.classList.remove('hidden'); alertLock.classList.remove('hidden'); btnSubmit.innerHTML = '<i class="fas fa-edit"></i><span>Kunci & Submit Revisi</span>'; btnSubmit.className = 'w-full py-4 bg-amber-500 hover:bg-amber-600 text-slate-900 font-black text-sm uppercase tracking-widest rounded-xl shadow-xl transition transform hover:-translate-y-1 relative z-10 flex items-center justify-center space-x-2'; alertLock.innerHTML = '<i class="fas fa-unlock mr-2"></i> Mode Revisi Aktif. Silakan update angka fisik.'; alertLock.className = 'bg-blue-50 text-blue-600 font-bold text-xs p-3 rounded-xl text-center mb-4 border border-blue-200'; } } 
+        else { btnSubmit.classList.remove('hidden'); alertLock.classList.add('hidden'); btnSubmit.innerHTML = '<i class="fas fa-paper-plane"></i><span>Submit Tutup Buku</span>'; btnSubmit.className = 'w-full py-4 bg-slate-900 hover:bg-slate-800 text-amber-400 font-black text-sm uppercase tracking-widest rounded-xl shadow-xl transition transform hover:-translate-y-1 relative z-10 flex items-center justify-center space-x-2'; }
     }
 };
 
-// FEEDBACK 2: MANAGER TUTUP BUKU
 window.renderManagerTutupBuku = () => {
-    const bln = document.getElementById('filterTbManager').value; // format YYYY-MM
-    const container = document.getElementById('tbManagerList'); container.innerHTML = '';
-    
-    if(!bln) return;
+    const bln = document.getElementById('filterTbManager').value; const container = document.getElementById('tbManagerList'); container.innerHTML = ''; if(!bln) return;
     const data = closeRegistersDB.filter(c => c.tanggal.startsWith(bln)).sort((a,b) => b.timestamp - a.timestamp);
     if(data.length === 0) { container.innerHTML = `<div class="col-span-full p-8 text-center text-slate-400 font-bold bg-white border border-slate-200 border-dashed rounded-3xl"><i class="fas fa-folder-open text-3xl mb-2 opacity-50 block"></i>Belum ada data Tutup Buku di bulan ini.</div>`; return; }
-    
-    data.forEach(d => {
-        let lockBadge = d.isUnlocked ? `<div class="mt-3 text-[10px] text-amber-600 font-bold bg-amber-50 p-1.5 rounded text-center border border-amber-200"><i class="fas fa-unlock"></i> Kasir Sedang Revisi</div>` : `<div class="mt-3 text-[10px] text-emerald-600 font-bold bg-emerald-50 p-1.5 rounded text-center border border-emerald-200"><i class="fas fa-lock"></i> Terkunci (Selesai)</div>`;
-        container.innerHTML += `
-        <div onclick="bukaDetailTbManager('${d.id}')" class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm cursor-pointer hover:border-amber-400 hover:shadow-md transition group">
-            <div class="flex justify-between items-center border-b border-slate-100 pb-2 mb-2">
-                <span class="font-black text-slate-800 text-lg group-hover:text-amber-600 transition"><i class="fas fa-calendar-check mr-1 text-slate-300"></i> ${d.tanggal.split('-').reverse().join('/')}</span>
-                <span class="text-[9px] bg-slate-100 text-slate-500 px-2 py-1 rounded-md font-bold uppercase">${d.kasir}</span>
-            </div>
-            <div class="flex justify-between items-center">
-                <span class="text-xs text-slate-500 font-bold">Setoran Fisik:</span>
-                <span class="font-black text-amber-600">${formatIDR(d.setoranCashReal)}</span>
-            </div>
-            <div class="flex justify-between items-center mt-1">
-                <span class="text-[10px] text-slate-500 font-bold">Status:</span>
-                <span class="font-black text-xs">${d.selisihSetoran === 0 ? '<span class="text-emerald-500">KLOP</span>' : (d.selisihSetoran > 0 ? `<span class="text-blue-500">+${formatIDR(d.selisihSetoran)}</span>` : `<span class="text-rose-500">-${formatIDR(Math.abs(d.selisihSetoran))}</span>`)}</span>
-            </div>
-            ${lockBadge}
-        </div>`;
-    });
+    data.forEach(d => { let lockBadge = d.isUnlocked ? `<div class="mt-3 text-[10px] text-amber-600 font-bold bg-amber-50 p-1.5 rounded text-center border border-amber-200"><i class="fas fa-unlock"></i> Kasir Sedang Revisi</div>` : `<div class="mt-3 text-[10px] text-emerald-600 font-bold bg-emerald-50 p-1.5 rounded text-center border border-emerald-200"><i class="fas fa-lock"></i> Terkunci (Selesai)</div>`; container.innerHTML += `<div onclick="bukaDetailTbManager('${d.id}')" class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm cursor-pointer hover:border-amber-400 hover:shadow-md transition group"><div class="flex justify-between items-center border-b border-slate-100 pb-2 mb-2"><span class="font-black text-slate-800 text-lg group-hover:text-amber-600 transition"><i class="fas fa-calendar-check mr-1 text-slate-300"></i> ${d.tanggal.split('-').reverse().join('/')}</span><span class="text-[9px] bg-slate-100 text-slate-500 px-2 py-1 rounded-md font-bold uppercase">${d.kasir}</span></div><div class="flex justify-between items-center"><span class="text-xs text-slate-500 font-bold">Setoran Fisik:</span><span class="font-black text-amber-600">${formatIDR(d.setoranCashReal)}</span></div><div class="flex justify-between items-center mt-1"><span class="text-[10px] text-slate-500 font-bold">Status:</span><span class="font-black text-xs">${d.selisihSetoran === 0 ? '<span class="text-emerald-500">KLOP</span>' : (d.selisihSetoran > 0 ? `<span class="text-blue-500">+${formatIDR(d.selisihSetoran)}</span>` : `<span class="text-rose-500">-${formatIDR(Math.abs(d.selisihSetoran))}</span>`)}</span></div>${lockBadge}</div>`; });
 };
 
 window.bukaDetailTbManager = (id) => {
     const tb = closeRegistersDB.find(c => c.id === id); if(!tb) return;
-    document.getElementById('detailTbTgl').innerText = tb.tanggal;
-    document.getElementById('detailTbKasir').innerText = tb.kasir;
-    document.getElementById('detailTbAwal').innerText = formatIDR(tb.angsulanAwal);
-    document.getElementById('detailTbOut').innerText = formatIDR(tb.pengeluaran);
-    document.getElementById('detailTbCash').innerText = formatIDR(tb.penjualanCash);
-    document.getElementById('detailTbTf').innerText = formatIDR(tb.penjualanTf);
-    document.getElementById('detailTbAngsulan').innerText = formatIDR(tb.angsulanDitinggal);
-    document.getElementById('detailTbSetoran').innerText = formatIDR(tb.setoranCashReal);
-    
-    let elSelisih = document.getElementById('detailTbSelisih');
-    elSelisih.innerText = tb.selisihSetoran === 0 ? 'PAS (KLOP)' : (tb.selisihSetoran > 0 ? `+ ${formatIDR(tb.selisihSetoran)}` : `- ${formatIDR(Math.abs(tb.selisihSetoran))}`);
-    elSelisih.className = `font-black ${tb.selisihSetoran === 0 ? 'text-emerald-600' : (tb.selisihSetoran > 0 ? 'text-blue-600' : 'text-rose-600')}`;
-
-    document.getElementById('btnUnlockTb').onclick = () => bukaKunciTbManager(id);
-    document.getElementById('btnEditTbFull').onclick = () => { document.getElementById('modalDetailTbManager').classList.add('hidden'); bukaModalEditTbManager(id); };
-
-    if(tb.isUnlocked) document.getElementById('btnUnlockTb').classList.add('hidden');
-    else document.getElementById('btnUnlockTb').classList.remove('hidden');
-
-    document.getElementById('modalDetailTbManager').classList.remove('hidden');
+    document.getElementById('detailTbTgl').innerText = tb.tanggal; document.getElementById('detailTbKasir').innerText = tb.kasir; document.getElementById('detailTbAwal').innerText = formatIDR(tb.angsulanAwal); document.getElementById('detailTbOut').innerText = formatIDR(tb.pengeluaran); document.getElementById('detailTbCash').innerText = formatIDR(tb.penjualanCash); document.getElementById('detailTbTf').innerText = formatIDR(tb.penjualanTf); document.getElementById('detailTbAngsulan').innerText = formatIDR(tb.angsulanDitinggal); document.getElementById('detailTbSetoran').innerText = formatIDR(tb.setoranCashReal);
+    let elSelisih = document.getElementById('detailTbSelisih'); elSelisih.innerText = tb.selisihSetoran === 0 ? 'PAS (KLOP)' : (tb.selisihSetoran > 0 ? `+ ${formatIDR(tb.selisihSetoran)}` : `- ${formatIDR(Math.abs(tb.selisihSetoran))}`); elSelisih.className = `font-black ${tb.selisihSetoran === 0 ? 'text-emerald-600' : (tb.selisihSetoran > 0 ? 'text-blue-600' : 'text-rose-600')}`;
+    document.getElementById('btnUnlockTb').onclick = () => bukaKunciTbManager(id); document.getElementById('btnEditTbFull').onclick = () => { document.getElementById('modalDetailTbManager').classList.add('hidden'); bukaModalEditTbManager(id); };
+    if(tb.isUnlocked) document.getElementById('btnUnlockTb').classList.add('hidden'); else document.getElementById('btnUnlockTb').classList.remove('hidden'); document.getElementById('modalDetailTbManager').classList.remove('hidden');
 };
 
-window.bukaKunciTbManager = async (id) => {
-    showLoading("Membuka Kunci...");
-    try {
-        await setDoc(getDocRef('close_registers', id), { isUnlocked: true }, { merge: true });
-        hideLoading(); document.getElementById('modalDetailTbManager').classList.add('hidden');
-        showToast("Akses revisi diberikan ke Kasir!", "success"); renderManagerTutupBuku();
-    } catch (err) { console.error(err); hideLoading(); showToast("Gagal membuka kunci", "error"); }
-};
-
-window.bukaModalEditTbManager = (id) => {
-    const tb = closeRegistersDB.find(c => c.id === id); if(!tb) return;
-    document.getElementById('editTbDocId').value = tb.id;
-    document.getElementById('editTbAngsulanAwal').value = tb.angsulanAwal ? tb.angsulanAwal.toLocaleString('id-ID') : 0;
-    document.getElementById('editTbCash').value = tb.penjualanCash ? tb.penjualanCash.toLocaleString('id-ID') : 0;
-    document.getElementById('editTbTf').value = tb.penjualanTf ? tb.penjualanTf.toLocaleString('id-ID') : 0;
-    document.getElementById('editTbOut').value = tb.pengeluaran ? tb.pengeluaran.toLocaleString('id-ID') : 0;
-    document.getElementById('editTbSetoran').value = tb.setoranCashReal ? tb.setoranCashReal.toLocaleString('id-ID') : 0;
-    document.getElementById('editTbAngsulan').value = tb.angsulanDitinggal ? tb.angsulanDitinggal.toLocaleString('id-ID') : 0;
-    document.getElementById('modalEditTbManager').classList.remove('hidden');
-};
+window.bukaKunciTbManager = async (id) => { showLoading("Membuka Kunci..."); try { await setDoc(getDocRef('close_registers', id), { isUnlocked: true }, { merge: true }); hideLoading(); document.getElementById('modalDetailTbManager').classList.add('hidden'); showToast("Akses revisi diberikan ke Kasir!", "success"); renderManagerTutupBuku(); } catch (err) { console.error(err); hideLoading(); showToast("Gagal membuka kunci", "error"); } };
+window.bukaModalEditTbManager = (id) => { const tb = closeRegistersDB.find(c => c.id === id); if(!tb) return; document.getElementById('editTbDocId').value = tb.id; document.getElementById('editTbAngsulanAwal').value = tb.angsulanAwal ? tb.angsulanAwal.toLocaleString('id-ID') : 0; document.getElementById('editTbCash').value = tb.penjualanCash ? tb.penjualanCash.toLocaleString('id-ID') : 0; document.getElementById('editTbTf').value = tb.penjualanTf ? tb.penjualanTf.toLocaleString('id-ID') : 0; document.getElementById('editTbOut').value = tb.pengeluaran ? tb.pengeluaran.toLocaleString('id-ID') : 0; document.getElementById('editTbSetoran').value = tb.setoranCashReal ? tb.setoranCashReal.toLocaleString('id-ID') : 0; document.getElementById('editTbAngsulan').value = tb.angsulanDitinggal ? tb.angsulanDitinggal.toLocaleString('id-ID') : 0; document.getElementById('modalEditTbManager').classList.remove('hidden'); };
 
 window.simpanEditTbManager = async () => {
-    const id = document.getElementById('editTbDocId').value;
-    const aAwal = getCleanNumber(document.getElementById('editTbAngsulanAwal').value); const pCash = getCleanNumber(document.getElementById('editTbCash').value); const pTf = getCleanNumber(document.getElementById('editTbTf').value); const pOut = getCleanNumber(document.getElementById('editTbOut').value); const setoran = getCleanNumber(document.getElementById('editTbSetoran').value); const angsulan = getCleanNumber(document.getElementById('editTbAngsulan').value);
-    
-    if(!id) return; showLoading("Menyimpan...");
-    try {
-        const setoranSistem = (aAwal + pCash + pTf) - pOut - angsulan; const selisih = setoran - Math.max(0, setoranSistem);
-        const payload = { angsulanAwal: aAwal, penjualanCash: pCash, penjualanTf: pTf, pengeluaran: pOut, setoranCashReal: setoran, angsulanDitinggal: angsulan, selisihSetoran: selisih, totalOmsetKotor: pCash + pTf, isEdited: true, editedAt: getTimestampStr() };
-        await setDoc(getDocRef('close_registers', id), payload, { merge: true });
-        document.getElementById('modalEditTbManager').classList.add('hidden'); showToast("Tutup Buku diperbarui"); window.renderManagerTutupBuku();
-    } catch (err) { console.error(err); showToast("Gagal update", "error"); }
-    hideLoading();
+    const id = document.getElementById('editTbDocId').value; const aAwal = getCleanNumber(document.getElementById('editTbAngsulanAwal').value); const pCash = getCleanNumber(document.getElementById('editTbCash').value); const pTf = getCleanNumber(document.getElementById('editTbTf').value); const pOut = getCleanNumber(document.getElementById('editTbOut').value); const setoran = getCleanNumber(document.getElementById('editTbSetoran').value); const angsulan = getCleanNumber(document.getElementById('editTbAngsulan').value);
+    if(!id) return; showLoading("Menyimpan..."); try { const setoranSistem = (aAwal + pCash + pTf) - pOut - angsulan; const selisih = setoran - Math.max(0, setoranSistem); const payload = { angsulanAwal: aAwal, penjualanCash: pCash, penjualanTf: pTf, pengeluaran: pOut, setoranCashReal: setoran, angsulanDitinggal: angsulan, selisihSetoran: selisih, totalOmsetKotor: pCash + pTf, isEdited: true, editedAt: getTimestampStr() }; await setDoc(getDocRef('close_registers', id), payload, { merge: true }); document.getElementById('modalEditTbManager').classList.add('hidden'); showToast("Tutup Buku diperbarui"); window.renderManagerTutupBuku(); } catch (err) { console.error(err); showToast("Gagal update", "error"); } hideLoading();
 };
 
-window.hitungSetoran = () => { 
-    const angsulanBesok = getCleanNumber(document.getElementById('tbInputAngsulan').value); const setoranSistem = tbGlobal.angsulanAwal + tbGlobal.cash + tbGlobal.tf - tbGlobal.out - angsulanBesok; const fisikStr = document.getElementById('tbInputFisik').value; const fisikReal = getCleanNumber(fisikStr);
-    document.getElementById('tbSetoranCash').innerText = formatIDR(Math.max(0, setoranSistem)); 
-    const elSelisih = document.getElementById('tbSelisihSetoran');
-    if(fisikStr === '') { elSelisih.innerText = "Rp 0"; elSelisih.className = "text-xl font-black text-slate-800"; } 
-    else {
-        const selisih = fisikReal - Math.max(0, setoranSistem);
-        if (selisih === 0) { elSelisih.innerText = "PAS (KLOP)"; elSelisih.className = "text-xl font-black text-emerald-600"; } 
-        else if (selisih > 0) { elSelisih.innerText = "+ " + formatIDR(selisih) + " (LEBIH)"; elSelisih.className = "text-xl font-black text-blue-600"; } 
-        else { elSelisih.innerText = "- " + formatIDR(Math.abs(selisih)) + " (MINUS)"; elSelisih.className = "text-xl font-black text-rose-600"; }
-    }
-};
+window.hitungSetoran = () => { const angsulanBesok = getCleanNumber(document.getElementById('tbInputAngsulan').value); const setoranSistem = tbGlobal.angsulanAwal + tbGlobal.cash + tbGlobal.tf - tbGlobal.out - angsulanBesok; const fisikStr = document.getElementById('tbInputFisik').value; const fisikReal = getCleanNumber(fisikStr); document.getElementById('tbSetoranCash').innerText = formatIDR(Math.max(0, setoranSistem)); const elSelisih = document.getElementById('tbSelisihSetoran'); if(fisikStr === '') { elSelisih.innerText = "Rp 0"; elSelisih.className = "text-xl font-black text-slate-800"; } else { const selisih = fisikReal - Math.max(0, setoranSistem); if (selisih === 0) { elSelisih.innerText = "PAS (KLOP)"; elSelisih.className = "text-xl font-black text-emerald-600"; } else if (selisih > 0) { elSelisih.innerText = "+ " + formatIDR(selisih) + " (LEBIH)"; elSelisih.className = "text-xl font-black text-blue-600"; } else { elSelisih.innerText = "- " + formatIDR(Math.abs(selisih)) + " (MINUS)"; elSelisih.className = "text-xl font-black text-rose-600"; } } };
 
 window.simpanTutupBuku = () => {
-    if(!auth.currentUser) return; const selectedDate = document.getElementById('tbInputTanggal').value; 
-    const existing = closeRegistersDB.find(c => c.tanggal === selectedDate && c.kasir === currentUser.nama);
-    if (existing && !existing.isUnlocked) return showToast("Sudah Tutup Buku!", "error");
-    
-    const fisikStr = document.getElementById('tbInputFisik').value; if(fisikStr === '') return showToast("MOHON ISI UANG CASH REAL!", "error");
-    
-    window.showModal("Konfirmasi Tutup Buku", "Pastikan hitungan fisik uang cash Anda sudah sesuai dengan sistem.", async () => { 
-        showLoading("Menyimpan..."); 
-        const angsulanBesok = getCleanNumber(document.getElementById('tbInputAngsulan').value); const setoranSistem = tbGlobal.angsulanAwal + tbGlobal.cash + tbGlobal.tf - tbGlobal.out - angsulanBesok; const fisikReal = getCleanNumber(fisikStr); const selisih = fisikReal - Math.max(0, setoranSistem);
-        
-        const payload = { tanggal: selectedDate, waktu: getTimestampStr(), timestamp: Date.now(), kasir: currentUser.nama, penjualanCash: tbGlobal.cash, penjualanTf: tbGlobal.tf, pengeluaran: tbGlobal.out, angsulanAwal: tbGlobal.angsulanAwal, angsulanDitinggal: angsulanBesok, setoranCashReal: fisikReal, selisihSetoran: selisih, totalOmsetKotor: tbGlobal.cash + tbGlobal.tf, isUnlocked: false };
-        
-        if (existing && existing.isUnlocked) await setDoc(getDocRef('close_registers', existing.id), payload, {merge: true});
-        else await addDoc(getColRef('close_registers'), payload);
-        
-        hideLoading(); showToast("Tutup Buku Tersimpan!", "success"); window.renderTutupBukuUI(); 
-    });
+    if(!auth.currentUser) return; const selectedDate = document.getElementById('tbInputTanggal').value; const existing = closeRegistersDB.find(c => c.tanggal === selectedDate && c.kasir === currentUser.nama); if (existing && !existing.isUnlocked) return showToast("Sudah Tutup Buku!", "error"); const fisikStr = document.getElementById('tbInputFisik').value; if(fisikStr === '') return showToast("MOHON ISI UANG CASH REAL!", "error");
+    window.showModal("Konfirmasi Tutup Buku", "Pastikan hitungan fisik uang cash Anda sudah sesuai dengan sistem.", async () => { showLoading("Menyimpan..."); const angsulanBesok = getCleanNumber(document.getElementById('tbInputAngsulan').value); const setoranSistem = tbGlobal.angsulanAwal + tbGlobal.cash + tbGlobal.tf - tbGlobal.out - angsulanBesok; const fisikReal = getCleanNumber(fisikStr); const selisih = fisikReal - Math.max(0, setoranSistem); const payload = { tanggal: selectedDate, waktu: getTimestampStr(), timestamp: Date.now(), kasir: currentUser.nama, penjualanCash: tbGlobal.cash, penjualanTf: tbGlobal.tf, pengeluaran: tbGlobal.out, angsulanAwal: tbGlobal.angsulanAwal, angsulanDitinggal: angsulanBesok, setoranCashReal: fisikReal, selisihSetoran: selisih, totalOmsetKotor: tbGlobal.cash + tbGlobal.tf, isUnlocked: false }; if (existing && existing.isUnlocked) await setDoc(getDocRef('close_registers', existing.id), payload, {merge: true}); else await addDoc(getColRef('close_registers'), payload); hideLoading(); showToast("Tutup Buku Tersimpan!", "success"); window.renderTutupBukuUI(); });
 };
 
-window.renderKelolaMenu = () => { 
-    const tbl = document.getElementById('tblKelolaMenu'); tbl.innerHTML = ''; let categories = [...new Set(menusDB.map(m => m.kategori.toUpperCase()))]; const defaultCats = ['MAKANAN', 'MINUMAN', 'TAMBAHAN']; categories = [...new Set([...defaultCats, ...categories])]; const dl = document.getElementById('listKategori'); if(dl) { dl.innerHTML = ''; categories.forEach(c => dl.innerHTML += `<option value="${c}"></option>`); }
-    categories.forEach(cat => {
-        const items = menusDB.filter(m => m.kategori.toUpperCase() === cat).sort((a,b) => (parseInt(a.urutan)||999) - (parseInt(b.urutan)||999));
-        if (items.length > 0) {
-            tbl.innerHTML += `<tr><td colspan="5" class="p-3 pl-5 bg-slate-50 font-black text-slate-600 text-[10px] uppercase tracking-widest border-y border-slate-100"><i class="fas fa-tag text-amber-500 mr-2"></i>KATEGORI: ${cat}</td></tr>`;
-            items.forEach(m => { tbl.innerHTML += `<tr class="hover:bg-slate-50 transition border-b border-slate-50"><td class="p-4 pl-5 font-black text-slate-800">${m.nama}</td><td class="p-4 text-center font-bold text-slate-500">${m.urutan || 999}</td><td class="p-4 text-right font-black text-slate-700 tracking-tight">${formatIDR(m.hargaDineIn)}</td><td class="p-4 text-right font-black text-slate-700 tracking-tight">${formatIDR(m.hargaGojek)}</td><td class="p-4 text-center"><button onclick="editMenu('${m.id}')" class="p-1.5 text-blue-500 hover:bg-blue-50 rounded-lg transition"><i class="fas fa-edit"></i></button><button onclick="hapusMenu('${m.id}')" class="p-1.5 text-rose-500 hover:bg-rose-50 rounded-lg transition"><i class="fas fa-trash-alt"></i></button></td></tr>`; });
-        }
-    });
-};
+window.renderKelolaMenu = () => { const tbl = document.getElementById('tblKelolaMenu'); tbl.innerHTML = ''; let categories = [...new Set(menusDB.map(m => m.kategori.toUpperCase()))]; const defaultCats = ['MAKANAN', 'MINUMAN', 'TAMBAHAN']; categories = [...new Set([...defaultCats, ...categories])]; const dl = document.getElementById('listKategori'); if(dl) { dl.innerHTML = ''; categories.forEach(c => dl.innerHTML += `<option value="${c}"></option>`); } categories.forEach(cat => { const items = menusDB.filter(m => m.kategori.toUpperCase() === cat).sort((a,b) => (parseInt(a.urutan)||999) - (parseInt(b.urutan)||999)); if (items.length > 0) { tbl.innerHTML += `<tr><td colspan="5" class="p-3 pl-5 bg-slate-50 font-black text-slate-600 text-[10px] uppercase tracking-widest border-y border-slate-100"><i class="fas fa-tag text-amber-500 mr-2"></i>KATEGORI: ${cat}</td></tr>`; items.forEach(m => { tbl.innerHTML += `<tr class="hover:bg-slate-50 transition border-b border-slate-50"><td class="p-4 pl-5 font-black text-slate-800">${m.nama}</td><td class="p-4 text-center font-bold text-slate-500">${m.urutan || 999}</td><td class="p-4 text-right font-black text-slate-700 tracking-tight">${formatIDR(m.hargaDineIn)}</td><td class="p-4 text-right font-black text-slate-700 tracking-tight">${formatIDR(m.hargaGojek)}</td><td class="p-4 text-center"><button onclick="editMenu('${m.id}')" class="p-1.5 text-blue-500 hover:bg-blue-50 rounded-lg transition"><i class="fas fa-edit"></i></button><button onclick="hapusMenu('${m.id}')" class="p-1.5 text-rose-500 hover:bg-rose-50 rounded-lg transition"><i class="fas fa-trash-alt"></i></button></td></tr>`; }); } }); };
 window.openModalMenu = () => { document.getElementById('menuId').value = ''; document.getElementById('menuNama').value = ''; document.getElementById('menuKategori').value = ''; document.getElementById('menuUrutan').value = ''; document.getElementById('menuHargaDineIn').value = ''; document.getElementById('menuHargaGojek').value = ''; document.getElementById('modalMenu').classList.remove('hidden'); };
 window.closeModalMenu = () => document.getElementById('modalMenu').classList.add('hidden');
 window.simpanMenuData = async () => { if(!auth.currentUser) return; const id = document.getElementById('menuId').value; const payload = { nama: document.getElementById('menuNama').value, kategori: document.getElementById('menuKategori').value.toUpperCase() || 'UMUM', urutan: parseInt(document.getElementById('menuUrutan').value) || 999, hargaDineIn: getCleanNumber(document.getElementById('menuHargaDineIn').value), hargaGojek: getCleanNumber(document.getElementById('menuHargaGojek').value) }; if(!payload.nama) return showToast("Nama wajib!", "error"); if (id) await setDoc(getDocRef('menus', id), payload, { merge: true }); else await addDoc(getColRef('menus'), payload); window.closeModalMenu(); showToast("Tersimpan."); };
 window.editMenu = (id) => { const m = menusDB.find(item => item.id === id); if (!m) return; document.getElementById('menuId').value = m.id; document.getElementById('menuNama').value = m.nama; document.getElementById('menuKategori').value = m.kategori; document.getElementById('menuUrutan').value = m.urutan || ''; document.getElementById('menuHargaDineIn').value = m.hargaDineIn ? m.hargaDineIn.toLocaleString('id-ID') : ''; document.getElementById('menuHargaGojek').value = m.hargaGojek ? m.hargaGojek.toLocaleString('id-ID') : ''; document.getElementById('modalMenu').classList.remove('hidden'); };
 window.hapusMenu = (id) => { window.showModal("Hapus", "Yakin hapus?", async () => { await deleteDoc(getDocRef('menus', id)); }); };
 
-// FEEDBACK 1: TAMPILAN PANTAU STOK UNIFIED
+// FEEDBACK 2: RENDER KELOLA STOK TOKEN/KARTU
 window.renderKelolaStok = () => { 
-    const tbl = document.getElementById('tblKelolaStok'); tbl.innerHTML = ''; 
+    const container = document.getElementById('containerKelolaStok'); container.innerHTML = ''; 
     let userStocks = currentUser.role === 'admin' ? stocksDB : stocksDB.filter(s => s.role === currentUser.role); 
     const roles = [...new Set(userStocks.map(s => s.role))].filter(r => r);
     
     roles.forEach(role => {
         const items = userStocks.filter(s => s.role === role);
         if(items.length > 0) {
-            tbl.innerHTML += `<tr><td colspan="5" class="p-3 pl-5 bg-slate-50 font-black text-slate-600 text-[10px] uppercase tracking-widest border-y border-slate-100"><i class="fas fa-user-tag text-amber-500 mr-2"></i>PIC / DIVISI: ${role}</td></tr>`;
+            let sectionHTML = `<div class="mb-6"><h4 class="flex items-center text-xs font-black text-slate-500 uppercase tracking-widest mb-3 border-b border-slate-200 pb-2"><i class="fas fa-user-tag text-amber-500 mr-2"></i> DIVISI: ${role}</h4><div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">`;
+            
             items.forEach(s => { 
                 const isLow = (parseFloat(s.stokSaatIni)||0) <= (parseFloat(s.stokMinimal)||0); 
-                const bgClass = isLow ? 'bg-rose-50/50 border-rose-200' : 'bg-white border-slate-50';
+                const bgClass = isLow ? 'bg-rose-50 border-rose-400' : 'bg-slate-50 border-slate-200';
                 const textClass = isLow ? 'text-rose-600' : 'text-slate-800';
-                const alertIcon = isLow ? `<i class="fas fa-exclamation-triangle text-rose-500 mr-2" title="Stok Menipis!"></i>` : '';
+                const alertIcon = isLow ? `<i class="fas fa-exclamation-circle text-rose-500 mb-2 block text-lg animate-pulse" title="Stok Menipis!"></i>` : '';
                 
-                let menuHtml = s.menuTerkait ? s.menuTerkait.split(',').map(m => `<span class="inline-block bg-amber-50 text-amber-700 border border-amber-200 text-[8px] font-black uppercase tracking-widest px-2 py-1 rounded-md mr-1 mb-1">${m.trim()}</span>`).join('') : '-'; 
-                
-                tbl.innerHTML += `<tr class="hover:bg-slate-100 transition border-b ${bgClass}"><td class="p-4 pl-5 font-black ${textClass}">${alertIcon}${s.nama} <span class="text-[9px] text-slate-400 font-bold uppercase block sm:inline">(${s.satuan})</span></td><td class="p-4 text-center font-black text-slate-400">${formatDec(s.stokMinimal)}</td><td class="p-4 text-center font-black text-lg ${textClass}">${formatDec(s.stokSaatIni)}</td><td class="p-3 w-56">${menuHtml}</td><td class="p-4 text-center"><button onclick="editStok('${s.id}')" class="p-1.5 text-blue-500 hover:bg-blue-50 rounded-lg transition"><i class="fas fa-edit"></i></button><button onclick="hapusStok('${s.id}')" class="p-1.5 text-rose-500 hover:bg-rose-50 rounded-lg transition"><i class="fas fa-trash-alt"></i></button></td></tr>`; 
+                sectionHTML += `<div class="relative p-4 rounded-2xl border-2 ${bgClass} shadow-sm flex flex-col justify-between group transition hover:shadow-md hover:border-amber-400"><div class="absolute top-2 right-2 flex opacity-100 sm:opacity-0 group-hover:opacity-100 transition"><button onclick="editStok('${s.id}')" class="text-blue-500 bg-blue-100 hover:bg-blue-500 hover:text-white p-1.5 rounded-lg transition mr-1"><i class="fas fa-edit text-[10px]"></i></button><button onclick="hapusStok('${s.id}')" class="text-rose-500 bg-rose-100 hover:bg-rose-500 hover:text-white p-1.5 rounded-lg transition"><i class="fas fa-trash-alt text-[10px]"></i></button></div><div>${alertIcon}<h4 class="font-bold text-xs ${textClass} leading-snug pr-12 line-clamp-2">${s.nama}</h4><p class="text-[9px] text-slate-400 font-bold mt-1 uppercase">Min: ${formatDec(s.stokMinimal)}</p></div><div class="mt-4 flex items-end justify-between border-t ${isLow ? 'border-rose-200' : 'border-slate-200'} pt-2"><span class="text-2xl font-black ${isLow ? 'text-rose-600' : 'text-slate-800'} tracking-tighter">${formatDec(s.stokSaatIni)}</span><span class="text-[9px] text-slate-500 font-bold uppercase mb-1">${s.satuan}</span></div></div>`; 
             });
+            sectionHTML += `</div></div>`; container.innerHTML += sectionHTML;
         }
     });
 };
@@ -742,8 +537,8 @@ window.simpanMutasiStok = async () => {
 };
 
 window.ajukanBukaKunci = async () => {
-    const tgl = document.getElementById('filterTglMutasi').value; const exists = requestsDB.some(r => r.tanggal === tgl && r.role === currentUser.role && r.type === 'unlock_mutasi'); if (exists) return showToast("Pengajuan sudah dikirim, tunggu Manager!", "info");
-    showLoading("Mengirim Pengajuan..."); try { await addDoc(getColRef('requests'), { type: 'unlock_mutasi', role: currentUser.role, tanggal: tgl, timestamp: Date.now() }); hideLoading(); showToast("Pengajuan terkirim ke Manager!", "success"); } catch (err) { hideLoading(); showToast("Gagal mengirim pengajuan", "error"); }
+    const tgl = document.getElementById('filterTglMutasi').value; const exists = requestsDB.some(r => r.tanggal === tgl && r.role === currentUser.role && r.type === 'unlock_mutasi'); if (exists) return showToast("Pengajuan dikirim, tunggu Manager!", "info");
+    showLoading("Mengirim Pengajuan..."); try { await addDoc(getColRef('requests'), { type: 'unlock_mutasi', role: currentUser.role, tanggal: tgl, timestamp: Date.now() }); hideLoading(); showToast("Pengajuan terkirim!", "success"); } catch (err) { hideLoading(); showToast("Gagal mengirim", "error"); }
 };
 
 window.renderManagerMutasi = () => {
@@ -821,4 +616,4 @@ window.renderRekapMenuTab = () => {
     else { let kategories = [...new Set([...['MAKANAN', 'MINUMAN', 'TAMBAHAN'], ...allItems.map(m => m.kategori.toUpperCase())])]; kategories.forEach(cat => { let itemsInCat = allItems.filter(m => m.kategori.toUpperCase() === cat).sort((a,b) => b.qty - a.qty); if(itemsInCat.length > 0) { tbl.innerHTML += `<tr><td colspan="3" class="p-3 pl-5 bg-slate-50 font-black text-slate-600 text-[10px] uppercase tracking-widest border-y border-slate-100"><i class="fas fa-tag text-amber-500 mr-2"></i>KATEGORI: ${cat}</td></tr>`; itemsInCat.forEach(m => { tbl.innerHTML += `<tr class="hover:bg-slate-50 border-b border-slate-50 transition"><td class="p-4 pl-5 font-bold text-slate-700">${m.nama}</td><td class="p-4 text-center font-black text-emerald-600">${m.qty} Porsi</td><td class="p-4 text-right pr-6 font-black text-slate-800">${formatIDR(m.rev)}</td></tr>`; }); } }); }
 };
 
-initApp();
+window.onload = initApp;
