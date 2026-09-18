@@ -1270,4 +1270,4 @@ window.renderRekapMenuTab = () => {
     }
 };
 
-window.onload = initApp;
+initApp();
