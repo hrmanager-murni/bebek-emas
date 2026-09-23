@@ -89,6 +89,7 @@
     </nav>
 
     <main class="flex-1 relative overflow-hidden bg-slate-100">
+        <!-- VIEW 1: KASIR -->
         <section id="view-kasir" class="view-panel absolute inset-0 flex flex-row overflow-hidden hidden bg-slate-100">
             <div class="flex-1 flex flex-col h-full overflow-hidden p-3 sm:p-4 bg-slate-50/50">
                 <div class="flex flex-col lg:flex-row items-center justify-between mb-4 gap-3 shrink-0">
@@ -148,6 +149,7 @@
             </div>
         </section>
 
+        <!-- VIEW 2: DASHBOARD -->
         <section id="view-dashboard" class="view-panel absolute inset-0 p-4 overflow-y-auto hidden">
             <div class="max-w-6xl mx-auto space-y-6">
                 <div class="bg-gradient-to-r from-slate-900 to-slate-800 text-white p-6 rounded-3xl shadow-xl flex items-center justify-between relative overflow-hidden border border-slate-700"><div class="absolute -right-10 -bottom-10 opacity-10 text-9xl text-amber-500"><i class="fas fa-chart-line"></i></div><div class="relative z-10"><h3 class="text-2xl font-black text-amber-400 tracking-wider mb-1 uppercase">Executive Dashboard</h3><p class="text-xs font-bold text-slate-300 uppercase tracking-widest">Sistem Pemantauan Terpusat</p></div></div>
@@ -159,13 +161,15 @@
             </div>
         </section>
 
+        <!-- VIEW 3: REKAP MENU -->
         <section id="view-rekapmenu" class="view-panel absolute inset-0 p-4 overflow-y-auto hidden">
             <div class="max-w-5xl mx-auto space-y-6">
-                <div class="bg-white p-5 rounded-3xl shadow-sm border border-slate-200 flex flex-col justify-between gap-4"><h3 class="text-base font-black text-slate-800 flex items-center space-x-2 mb-2"><i class="fas fa-list-ol text-amber-500"></i><span>Laporan Penjualan Menu</span></h3>
-                    <div class="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-3">
-                        <input type="date" id="rmStartDate" onchange="window.renderRekapMenuTab()" class="w-full sm:w-1/3 p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-600 outline-none focus:border-amber-400 transition">
-                        <input type="date" id="rmEndDate" onchange="window.renderRekapMenuTab()" class="w-full sm:w-1/3 p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-600 outline-none focus:border-amber-400 transition">
-                        <select id="filterKategoriRekap" onchange="window.renderRekapMenuTab()" class="w-full sm:w-1/3 p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-600 outline-none focus:border-amber-400 transition">
+                <div class="bg-white p-5 rounded-3xl shadow-sm border border-slate-200 flex flex-col sm:flex-row justify-between items-center gap-4">
+                    <h3 class="text-base font-black text-slate-800 flex items-center space-x-2"><i class="fas fa-list-ol text-amber-500"></i><span>Laporan Penjualan Menu</span></h3>
+                    <div class="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-3 w-full sm:w-auto">
+                        <input type="date" id="rmStartDate" onchange="window.renderRekapMenuTab()" class="w-full sm:w-auto p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-600 outline-none focus:border-amber-400 transition">
+                        <input type="date" id="rmEndDate" onchange="window.renderRekapMenuTab()" class="w-full sm:w-auto p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-600 outline-none focus:border-amber-400 transition">
+                        <select id="filterKategoriRekap" onchange="window.renderRekapMenuTab()" class="w-full sm:w-auto p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-600 outline-none focus:border-amber-400 transition">
                             <option value="ALL">SEMUA KATEGORI</option>
                         </select>
                     </div>
@@ -175,10 +179,12 @@
             </div>
         </section>
 
+        <!-- VIEW 4: NOTA TERSIMPAN -->
         <section id="view-notatersimpan" class="view-panel absolute inset-0 p-4 overflow-y-auto hidden">
             <div class="max-w-4xl mx-auto space-y-4"><div class="bg-white p-5 rounded-3xl shadow-sm border border-slate-200 flex items-center justify-between"><div><h3 class="text-lg font-black text-slate-800 flex items-center space-x-2"><i class="fas fa-clock-rotate-left text-amber-500"></i><span>Daftar Nota Tertunda</span></h3></div></div><div id="savedBillsContainer" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 content-start"></div></div>
         </section>
 
+        <!-- VIEW 5: LAPORAN -->
         <section id="view-laporan" class="view-panel absolute inset-0 p-4 overflow-y-auto hidden">
             <div class="max-w-7xl mx-auto space-y-4">
                 <div class="bg-white p-5 rounded-3xl shadow-sm border border-slate-200 flex flex-col md:flex-row items-center justify-between gap-4">
@@ -197,6 +203,7 @@
             </div>
         </section>
 
+        <!-- VIEW 6: PENGELUARAN -->
         <section id="view-pengeluaran" class="view-panel absolute inset-0 p-4 overflow-y-auto hidden">
             <div class="max-w-3xl mx-auto space-y-4">
                 <div class="bg-white p-6 rounded-3xl shadow-sm border border-slate-200 relative overflow-hidden"><h3 class="text-base font-black text-slate-800 mb-5 flex items-center space-x-2"><i class="fas fa-money-bill-transfer text-amber-500 text-xl"></i><span>Catat Pengeluaran Kasir</span></h3><div class="space-y-4 z-10 relative"><div><input type="text" id="outDeskripsi" placeholder="Contoh: Beli Es Batu, Galon, Plastik" class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:bg-white focus:border-amber-400 transition"></div><div><input type="text" inputmode="numeric" id="outNominal" placeholder="Nominal Rp" oninput="formatNumberInput(this)" class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-black text-rose-600 outline-none focus:bg-white focus:border-amber-400 transition"></div><button onclick="simpanPengeluaran()" class="w-full py-4 bg-slate-900 hover:bg-slate-800 text-amber-400 font-black text-xs tracking-widest uppercase rounded-xl shadow-lg transition flex items-center justify-center space-x-2"><i class="fas fa-save text-sm"></i><span>Simpan Pengeluaran</span></button></div></div>
@@ -204,6 +211,7 @@
             </div>
         </section>
 
+        <!-- VIEW 7: TUTUP BUKU -->
         <section id="view-tutupbuku" class="view-panel absolute inset-0 p-4 overflow-y-auto hidden">
             <div id="tb-kasir-view" class="max-w-xl mx-auto bg-white p-8 rounded-3xl shadow-xl border border-slate-200 space-y-6 relative overflow-hidden hidden">
                 <div class="text-center border-b border-slate-100 pb-5 relative z-10"><div class="w-16 h-16 bg-slate-900 text-amber-400 rounded-2xl mx-auto flex items-center justify-center text-3xl mb-4 shadow-lg border-2 border-slate-800"><i class="fas fa-lock"></i></div><h3 class="text-xl font-black text-slate-800 tracking-wide uppercase">Laporan Tutup Buku</h3><div class="mt-2 inline-flex items-center space-x-2 bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-200 shadow-sm relative z-20"><i class="fas fa-calendar text-amber-500"></i><input type="date" id="tbInputTanggal" onchange="renderTutupBukuUI()" class="text-xs font-black tracking-widest text-slate-700 outline-none cursor-pointer bg-transparent uppercase"></div></div>
@@ -214,18 +222,21 @@
             </div>
 
             <div id="tb-manager-view" class="max-w-5xl mx-auto space-y-4 hidden">
-                <div class="bg-white p-5 rounded-3xl shadow-sm border border-slate-200 flex flex-col md:flex-row items-center justify-between gap-4"><h3 class="text-base font-black text-slate-800 flex items-center"><i class="fas fa-lock text-amber-500 mr-2"></i>Rekap Tutup Buku Kasir</h3>
-                <div class="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-3 w-full">
-                    <input type="date" id="tbStartDate" class="w-full sm:w-1/3 p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-600 outline-none focus:border-amber-400 transition">
-                    <input type="date" id="tbEndDate" class="w-full sm:w-1/3 p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-600 outline-none focus:border-amber-400 transition">
-                    <button onclick="window.renderManagerTutupBuku()" class="w-full sm:w-1/3 py-3 bg-slate-900 hover:bg-slate-800 text-amber-400 text-xs font-black uppercase tracking-widest rounded-xl transition shadow-md flex items-center justify-center space-x-2">
-                        <i class="fas fa-search"></i><span>Terapkan Rentang</span>
-                    </button>
-                </div></div>
+                <div class="bg-white p-5 rounded-3xl shadow-sm border border-slate-200 flex flex-col md:flex-row items-center justify-between gap-4">
+                    <h3 class="text-base font-black text-slate-800 flex items-center"><i class="fas fa-lock text-amber-500 mr-2"></i>Rekap Tutup Buku Kasir</h3>
+                    <div class="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-3 w-full md:w-auto">
+                        <input type="date" id="tbStartDate" class="w-full sm:w-auto p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-600 outline-none focus:border-amber-400 transition">
+                        <input type="date" id="tbEndDate" class="w-full sm:w-auto p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-600 outline-none focus:border-amber-400 transition">
+                        <button onclick="window.renderManagerTutupBuku()" class="w-full sm:w-auto px-4 py-3 bg-slate-900 hover:bg-slate-800 text-amber-400 text-xs font-black uppercase tracking-widest rounded-xl transition shadow-md flex items-center justify-center space-x-2">
+                            <i class="fas fa-search"></i><span class="hidden sm:inline">Terapkan</span>
+                        </button>
+                    </div>
+                </div>
                 <div id="tbManagerList" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"></div>
             </div>
         </section>
 
+        <!-- VIEW 8: KELOLA MENU -->
         <section id="view-kelolamenu" class="view-panel absolute inset-0 p-4 overflow-y-auto hidden">
             <div class="max-w-5xl mx-auto space-y-4">
                 <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-5 rounded-3xl shadow-sm border border-slate-200"><div><h3 class="text-base font-black text-slate-800 flex items-center space-x-2"><i class="fas fa-utensils text-amber-500"></i><span>Manajemen Menu Kasir</span></h3></div><button onclick="openModalMenu()" class="px-5 py-3 bg-amber-500 hover:bg-amber-600 text-slate-900 font-black uppercase tracking-widest text-xs rounded-xl shadow-md transition flex items-center space-x-2"><i class="fas fa-plus"></i><span>Tambah Menu</span></button></div>
@@ -233,6 +244,7 @@
             </div>
         </section>
 
+        <!-- VIEW 9: KELOLA STOK -->
         <section id="view-kelolastok" class="view-panel absolute inset-0 p-4 overflow-y-auto hidden">
             <div class="max-w-6xl mx-auto space-y-4">
                 <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-5 rounded-3xl shadow-sm border border-slate-200"><div><h3 class="text-base font-black text-slate-800 flex items-center space-x-2"><i class="fas fa-boxes text-amber-500"></i><span>Pantau & Master Stok Gudang</span></h3><p class="text-[10px] font-bold text-slate-400 mt-1 uppercase tracking-widest">Token bergaris merah menandakan stok menipis</p></div><button onclick="openModalStok()" class="px-5 py-3 bg-amber-500 hover:bg-amber-600 text-slate-900 font-black uppercase tracking-widest text-xs rounded-xl shadow-md transition"><i class="fas fa-plus mr-2"></i><span>Tambah Barang</span></button></div>
@@ -240,6 +252,7 @@
             </div>
         </section>
 
+        <!-- VIEW 10: MUTASI STOK -->
         <section id="view-mutasistok" class="view-panel absolute inset-0 p-2 sm:p-4 overflow-y-auto hidden">
             <div id="mutasi-staff-view" class="max-w-7xl mx-auto space-y-2 sm:space-y-4 flex flex-col h-full hidden">
                 <div class="bg-white p-3 sm:p-5 rounded-2xl sm:rounded-3xl shadow-sm border border-slate-200 flex flex-row justify-between items-center gap-2 sm:gap-4 shrink-0"><div class="flex items-center space-x-2 sm:space-x-4"><div class="w-8 h-8 sm:w-12 sm:h-12 bg-blue-50 text-blue-500 rounded-lg sm:rounded-2xl flex items-center justify-center text-sm sm:text-2xl"><i class="fas fa-clipboard-check"></i></div><div><h3 class="text-xs sm:text-base font-black text-slate-800 uppercase tracking-wider">Mutasi Harian</h3></div></div><div class="flex items-center space-x-2 bg-slate-50 px-2 py-1.5 sm:px-4 sm:py-2.5 rounded-lg sm:rounded-2xl border border-slate-100"><input type="date" id="filterTglMutasi" onchange="loadMutasiDataUI()" class="bg-transparent text-xs sm:text-sm font-black text-amber-600 outline-none cursor-pointer"></div></div>
@@ -257,6 +270,7 @@
             </div>
         </section>
 
+        <!-- VIEW 11: LAPORAN STOK -->
         <section id="view-laporanstok" class="view-panel absolute inset-0 p-4 overflow-y-auto hidden">
             <div class="max-w-6xl mx-auto space-y-4">
                 <div class="bg-white p-5 rounded-3xl shadow-sm border border-slate-200 flex flex-col md:flex-row justify-between items-start md:items-center gap-4"><div><h3 class="text-base font-black text-slate-800 flex items-center space-x-2"><i class="fas fa-boxes text-amber-500"></i><span>Laporan Pemakaian Stok</span></h3><p class="text-[10px] text-slate-400 font-bold mt-1 uppercase tracking-widest">Akumulasi Data Mutasi Harian</p></div><div class="flex flex-col sm:flex-row items-center gap-3 w-full md:w-auto"><select id="filterPicLaporanStok" onchange="renderLaporanStokUI()" class="bg-slate-50 border border-slate-200 text-slate-700 text-[10px] sm:text-xs font-black uppercase tracking-wider rounded-xl px-4 py-2.5 outline-none shadow-sm w-full sm:w-auto"><option value="ALL">Semua Divisi</option><option value="koki">Koki</option><option value="barista">Barista</option><option value="staff_dapur">Staff Dapur</option><option value="waiter">Waiter</option></select><div class="flex items-center space-x-2 bg-slate-50 border border-slate-200 rounded-xl p-1.5 shadow-inner w-full sm:w-auto"><input type="date" id="lsStartDate" class="text-xs font-bold outline-none cursor-pointer text-slate-700 bg-transparent px-2 py-1 rounded-lg"><span class="text-xs font-bold text-slate-400">-</span><input type="date" id="lsEndDate" class="text-xs font-bold outline-none cursor-pointer text-slate-700 bg-transparent px-2 py-1 rounded-lg"><button onclick="renderLaporanStokUI()" class="px-4 py-1.5 bg-amber-500 hover:bg-amber-600 text-slate-900 font-black text-[10px] rounded-lg uppercase tracking-widest transition shadow-sm">Terapkan</button></div></div></div>
@@ -265,6 +279,7 @@
         </section>
     </main>
 
+    <!-- KUMPULAN MODAL POPUP (Jangan Dihapus) -->
     <div id="modalMixPay" class="fixed inset-0 bg-slate-900/80 z-[70] hidden flex items-center justify-center p-4 backdrop-blur-sm"><div class="bg-white rounded-3xl max-w-sm w-full p-6 shadow-2xl animate-fade-in relative overflow-hidden text-center"><div class="absolute top-0 left-0 w-full h-2 bg-purple-500"></div><div class="w-12 h-12 bg-purple-50 text-purple-600 rounded-full flex items-center justify-center text-xl mb-4 mx-auto border border-purple-100"><i class="fas fa-money-bill-transfer"></i></div><h3 class="text-lg font-black mb-1 text-slate-800">Mix Payment</h3><p class="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-4">Total: <span id="mixTotalTagihan" class="text-purple-600 text-sm">Rp 0</span></p><div class="text-left space-y-4 mb-6"><div><label class="font-black text-slate-500 block mb-1 text-[10px] uppercase tracking-widest pl-1">Nominal Tunai (CASH) Diinput:</label><div class="relative"><span class="absolute left-4 top-3.5 text-sm font-bold text-slate-400">Rp</span><input type="text" inputmode="numeric" id="mixInputCash" oninput="formatNumberInput(this); hitungMixTf()" placeholder="0" class="w-full pl-10 pr-4 py-3 bg-slate-50 border-2 border-slate-200 rounded-xl text-lg font-black text-emerald-600 outline-none focus:bg-white focus:border-purple-400 transition"></div></div><div class="bg-blue-50 border border-blue-100 p-3 rounded-xl flex justify-between items-center"><span class="font-black text-slate-500 text-[10px] uppercase tracking-widest">Sisa Wajib Transfer (TF):</span><span id="mixSisaTf" class="text-lg font-black text-blue-600">Rp 0</span></div></div><div class="flex space-x-2"><button onclick="document.getElementById('modalMixPay').classList.add('hidden')" class="flex-1 py-3 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold text-xs rounded-xl transition">Batal</button><button onclick="prosesMixPay()" class="flex-1 py-3 bg-purple-500 hover:bg-purple-600 text-white font-black uppercase tracking-widest text-xs rounded-xl shadow-md transition">Proses Bayar</button></div></div></div>
 
     <div id="modalMenu" class="fixed inset-0 bg-slate-900/80 z-50 hidden flex items-center justify-center p-4 backdrop-blur-sm"><div class="bg-white rounded-3xl max-w-sm w-full shadow-2xl animate-fade-in overflow-hidden"><div class="bg-slate-50 p-5 border-b border-slate-200 flex justify-between items-center"><h3 class="text-sm font-black text-slate-800 uppercase tracking-widest"><i class="fas fa-burger text-amber-500 mr-2"></i>Form Menu Kasir</h3><button onclick="closeModalMenu()" class="text-slate-400 hover:text-rose-500 transition"><i class="fas fa-times text-xl"></i></button></div><div class="p-6 space-y-4 text-xs"><input type="hidden" id="menuId"><div><input type="text" id="menuNama" placeholder="Nama Menu" class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:bg-white focus:border-amber-400 font-bold text-slate-800 transition"></div><div class="grid grid-cols-2 gap-4"><div class="col-span-2"><label class="block mb-1 text-[10px] uppercase tracking-widest font-black text-slate-500">Kategori Menu</label><input type="text" id="menuKategori" list="listKategori" placeholder="Pilih / Ketik Kategori Baru" class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:bg-white focus:border-amber-400 font-bold text-slate-700 transition uppercase"><datalist id="listKategori"></datalist></div><div class="col-span-2"><input type="number" id="menuUrutan" placeholder="Urutan Tampil (Cth: 1, 2)" class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:bg-white focus:border-amber-400 font-bold text-slate-800 transition" title="Angka lebih kecil tampil lebih dulu"></div></div><div class="grid grid-cols-2 gap-4"><div><label class="block mb-1 text-[10px] uppercase tracking-widest font-black text-slate-500">Dine In (Rp)</label><input type="text" inputmode="numeric" oninput="formatNumberInput(this)" id="menuHargaDineIn" placeholder="0" class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:bg-white focus:border-amber-400 font-black text-slate-800 transition"></div><div><label class="block mb-1 text-[10px] uppercase tracking-widest font-black text-slate-500">Gojek (Rp)</label><input type="text" inputmode="numeric" oninput="formatNumberInput(this)" id="menuHargaGojek" placeholder="0" class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:bg-white focus:border-amber-400 font-black text-slate-800 transition"></div></div></div><div class="p-5 bg-slate-50 border-t border-slate-100 flex space-x-3"><button onclick="closeModalMenu()" class="flex-1 py-3 bg-white border border-slate-200 text-slate-600 font-bold text-xs rounded-xl hover:bg-slate-100 transition">Batal</button><button onclick="simpanMenuData()" class="flex-1 py-3 bg-amber-500 text-slate-900 font-black uppercase tracking-widest text-xs rounded-xl shadow-md hover:bg-amber-600 transition">Simpan</button></div></div></div>
