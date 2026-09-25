@@ -1838,7 +1838,8 @@ window.rejectRequest = async (reqId) => {
 window.renderRekapMenuTab = () => {
     const sd = document.getElementById('rmStartDate').value; 
     const ed = document.getElementById('rmEndDate').value; 
-    const filterKategori = document.getElementById('rmKategoriFilter').value;
+    const filterDropdown = document.getElementById('rmKategoriFilter');
+    const filterKategori = filterDropdown ? filterDropdown.value : 'ALL';
 
     if(!sd || !ed) { 
         const dEnd = new Date(); const dStart = new Date(); dStart.setDate(dEnd.getDate() - 6); 
