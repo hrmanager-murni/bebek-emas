@@ -1,4 +1,3 @@
-// Menghapus 'persistentLocalCache' agar database langsung sinkron tanpa menyimpan beban ke offline mode[cite: 2]
 import { getFirestore, doc, setDoc, deleteDoc, onSnapshot, collection, addDoc, getDocs, query, where } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
 import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
@@ -27,6 +26,8 @@ let cart = [], tipeOrder = 'DineIn', isCloudReady = false;
 let discountInfo = { type: '%', value: 0, amount: 0 }; 
 let subtotalCart = 0;
 let activeKategoriKasir = 'ALL';
+let mutasiDraftHariIni = [];
+let mutasiSaveTimeout = null;
 
 window.arsipData = { transactions: [], expenses: [], close_registers: [], stock_mutations: [] };
 window.thermalPrinter = null; 
@@ -165,6 +166,39 @@ window.printReceiptAction = async () => {
         }
     } 
     window.print();
+};
+
+window.cetakStrukPreview = (payload) => {
+    document.getElementById('strukWaktu').innerText = payload.waktu;
+    document.getElementById('strukNota').innerText = "Nota: #" + payload.noNota;
+    document.getElementById('strukKasir').innerText = "Kasir: " + payload.kasir;
+    document.getElementById('strukCustomerDetail').innerText = payload.customer + " / " + payload.meja;
+    
+    let itemsHtml = '';
+    payload.cart.forEach(c => {
+        let harga = payload.tipeOrder === 'DineIn' ? c.hargaDineIn : c.hargaGojek;
+        itemsHtml += `<div class="flex justify-between"><span>${c.nama} x${c.qty}</span><span>${formatIDRPlain(harga * c.qty)}</span></div>`;
+    });
+    document.getElementById('strukItems').innerHTML = itemsHtml;
+    
+    document.getElementById('strukSubtotal').innerText = formatIDRPlain(payload.subtotal);
+    document.getElementById('strukDiskon').innerText = "- " + formatIDRPlain(payload.diskonRp);
+    
+    const gojekRow = document.getElementById('strukGojekRow');
+    if(payload.tipeOrder === 'Gojek' && payload.gojekFee > 0) {
+        gojekRow.classList.remove('hidden');
+        document.getElementById('strukGojekFee').innerText = "- " + formatIDRPlain(payload.gojekFee);
+    } else {
+        gojekRow.classList.add('hidden');
+    }
+    
+    document.getElementById('strukTipe').innerText = payload.tipeOrder;
+    document.getElementById('strukMetode').innerText = payload.pembayaran;
+    
+    let totalCetak = payload.totalBayar !== undefined ? payload.totalBayar : (payload.subtotal - payload.diskonRp);
+    document.getElementById('strukTotal').innerText = formatIDRPlain(totalCetak);
+    
+    document.getElementById('modalStruk').classList.remove('hidden');
 };
 
 function getGojekFee(totalAfterDisc) {
@@ -1047,7 +1081,6 @@ window.renderManagerTutupBuku = () => {
     container.innerHTML = ''; 
     if(!bln) return;
     
-    // Tambah tombol Download Excel
     const btnContainer = document.createElement('div');
     btnContainer.className = 'col-span-full mb-2 flex justify-end';
     btnContainer.innerHTML = `<button onclick="exportExcelTutupBuku()" class="px-5 py-3 bg-emerald-500 hover:bg-emerald-600 text-white font-black text-xs uppercase tracking-widest rounded-xl shadow-md transition flex items-center space-x-2"><i class="fas fa-file-excel text-lg"></i><span>Download Excel Profesional</span></button>`;
@@ -1465,7 +1498,7 @@ window.renderMutasiTable = () => {
     mutasiDraftHariIni.forEach((m, idx) => {
         let selisihColor = "text-slate-400"; 
         if (m.selisih < 0) selisihColor = "text-rose-600 bg-rose-50"; 
-        if (m.selisih > 0) selisihColor = "textemerald-600 bg-emerald-50"; 
+        if (m.selisih > 0) selisihColor = "text-emerald-600 bg-emerald-50"; 
         const dis = m.isLocked ? 'disabled' : ''; 
         const inputClass = `w-full text-center bg-white border border-slate-200 rounded-lg p-2 font-black outline-none transition shadow-sm text-slate-700 ${m.isLocked ? 'opacity-50' : 'focus:ring-2 focus:ring-blue-400'}`;
         if (m.fisik !== '' || m.masuk > 0 || m.manual > 0 || m.rusak > 0) adaPerubahan = true;
@@ -1740,15 +1773,32 @@ window.renderManagerDashboard = () => {
         }); 
     }
 
-    const remindersCont = document.getElementById('managerRemindersList'); 
-    remindersCont.innerHTML = '';
+    const approvalsCont = document.getElementById('managerApprovalsList');
+    const alertsCont = document.getElementById('managerAlertsList');
+    if(approvalsCont) approvalsCont.innerHTML = ''; 
+    if(alertsCont) alertsCont.innerHTML = '';
     
-    requestsDB.filter(r => r.type === 'unlock_mutasi').forEach(r => { 
-        remindersCont.innerHTML += `<div onclick="switchTab('mutasistok'); document.getElementById('filterPicMutasiManager').value='${r.role}'; document.getElementById('filterTglMutasiManager').value='${r.tanggal}'; window.renderManagerMutasi();" class="p-3 bg-blue-50 rounded-xl border border-blue-100 flex items-start space-x-3 cursor-pointer hover:bg-blue-100 transition shadow-sm"><i class="fas fa-key text-blue-500 mt-0.5"></i><div><h5 class="text-xs font-black text-blue-700">Permintaan Buka Kunci Mutasi</h5><p class="text-[10px] font-bold text-blue-600 uppercase tracking-widest">Divisi ${r.role.toUpperCase()} meminta akses revisi inputan fisik.</p></div></div>`; 
-    });
+    // 1. Notifikasi Persetujuan
+    const pendingReqs = requestsDB.filter(r => r.type === 'unlock_mutasi');
+    if(pendingReqs.length === 0 && approvalsCont) {
+        approvalsCont.innerHTML = `<div class="text-[10px] text-slate-400 font-bold text-center py-4 bg-slate-50 rounded-xl border border-dashed border-slate-200">Tidak ada pengajuan.</div>`;
+    } else if(approvalsCont) {
+        pendingReqs.forEach(r => { 
+            approvalsCont.innerHTML += `<div class="p-3 bg-blue-50 rounded-xl border border-blue-100 flex flex-col space-y-3 shadow-sm mb-3">
+                <div class="flex items-start space-x-2"><i class="fas fa-key text-blue-500 mt-0.5"></i><div><h5 class="text-xs font-black text-blue-700">Revisi Mutasi Harian</h5><p class="text-[10px] font-bold text-blue-600 uppercase tracking-widest">Divisi ${r.role} • Tgl: ${r.tanggal}</p></div></div>
+                <div class="flex space-x-2 pt-2 border-t border-blue-100">
+                    <button onclick="approveRequest('${r.id}', '${r.role}', '${r.tanggal}')" class="flex-1 py-1.5 bg-blue-500 hover:bg-blue-600 text-white font-black text-[9px] uppercase tracking-widest rounded-lg transition shadow-sm">Setujui Buka Kunci</button>
+                    <button onclick="rejectRequest('${r.id}')" class="flex-1 py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-600 font-black text-[9px] uppercase tracking-widest rounded-lg transition">Tolak</button>
+                </div>
+            </div>`; 
+        });
+    }
     
+    // 2. Peringatan Sistem (Stok & Tugas)
+    let alertCount = 0;
     stocksDB.filter(s => (parseFloat(s.stokSaatIni)||0) <= (parseFloat(s.stokMinimal)||0)).forEach(s => { 
-        remindersCont.innerHTML += `<div class="p-3 bg-rose-50 rounded-xl border border-rose-100 flex items-start space-x-3"><i class="fas fa-exclamation-circle text-rose-500 mt-0.5"></i><div><h5 class="text-xs font-black text-rose-700">Stok Kritis: ${s.nama}</h5><p class="text-[10px] font-bold text-rose-500">Sisa ${formatDec(s.stokSaatIni)} ${s.satuan}</p></div></div>`; 
+        alertCount++;
+        if(alertsCont) alertsCont.innerHTML += `<div class="p-3 bg-rose-50 rounded-xl border border-rose-100 flex items-start space-x-3 mb-2"><i class="fas fa-exclamation-circle text-rose-500 mt-0.5"></i><div><h5 class="text-xs font-black text-rose-700">Stok Kritis: ${s.nama}</h5><p class="text-[10px] font-bold text-rose-500">Sisa ${formatDec(s.stokSaatIni)} ${s.satuan}</p></div></div>`; 
     });
     
     const todayYMD = getTodayYMD(); 
@@ -1756,16 +1806,40 @@ window.renderManagerDashboard = () => {
     const submittedRoles = [...new Set(mutasiDB.filter(m => m.tanggal === todayYMD).map(m => m.role))]; 
     requiredRoles.forEach(r => { 
         if(!submittedRoles.includes(r)) { 
-            remindersCont.innerHTML += `<div class="p-3 bg-amber-50 rounded-xl border border-amber-100 flex items-start space-x-3"><i class="fas fa-clock text-amber-500 mt-0.5"></i><div><h5 class="text-xs font-black text-amber-700">Tugas Belum Selesai</h5><p class="text-[10px] font-bold text-amber-600 uppercase tracking-widest">Tim ${r} belum submit mutasi hari ini.</p></div></div>`; 
+            alertCount++;
+            if(alertsCont) alertsCont.innerHTML += `<div class="p-3 bg-amber-50 rounded-xl border border-amber-100 flex items-start space-x-3 mb-2"><i class="fas fa-clock text-amber-500 mt-0.5"></i><div><h5 class="text-xs font-black text-amber-700">Tugas Belum Selesai</h5><p class="text-[10px] font-bold text-amber-600 uppercase tracking-widest">Tim ${r} belum submit mutasi hari ini.</p></div></div>`; 
         } 
     });
     
-    if(remindersCont.innerHTML === '') remindersCont.innerHTML = `<div class="p-5 text-center text-slate-400 font-bold bg-slate-50 rounded-2xl border border-slate-100 border-dashed"><i class="fas fa-check-circle text-2xl mb-2 text-emerald-400"></i><br>Tidak ada peringatan. Operasional sempurna!</div>`;
+    if(alertCount === 0 && alertsCont) alertsCont.innerHTML = `<div class="p-5 text-center text-slate-400 font-bold bg-slate-50 rounded-2xl border border-slate-100 border-dashed"><i class="fas fa-check-circle text-2xl mb-2 text-emerald-400"></i><br>Tidak ada peringatan. Operasional sempurna!</div>`;
+};
+
+// Fungsi Aksi Setujui & Tolak
+window.approveRequest = async (reqId, role, tgl) => {
+    showLoading("Menyetujui Akses...");
+    try {
+        const mutasiToUnlock = mutasiDB.filter(m => m.tanggal === tgl && m.role === role); 
+        for (let m of mutasiToUnlock) { await setDoc(getDocRef('stock_mutations', m.id), { isUnlocked: true }, { merge: true }); }
+        await deleteDoc(getDocRef('requests', reqId));
+        hideLoading(); showToast("Akses Revisi Diberikan!", "success");
+        renderManagerDashboard();
+    } catch(e) { console.error(e); hideLoading(); showToast("Gagal menyetujui", "error"); }
+};
+
+window.rejectRequest = async (reqId) => {
+    showLoading("Menolak...");
+    try {
+        await deleteDoc(getDocRef('requests', reqId));
+        hideLoading(); showToast("Pengajuan Ditolak.");
+        renderManagerDashboard();
+    } catch(e) { hideLoading(); showToast("Gagal menolak", "error"); }
 };
 
 window.renderRekapMenuTab = () => {
     const sd = document.getElementById('rmStartDate').value; 
     const ed = document.getElementById('rmEndDate').value; 
+    const filterKategori = document.getElementById('rmKategoriFilter').value;
+
     if(!sd || !ed) { 
         const dEnd = new Date(); const dStart = new Date(); dStart.setDate(dEnd.getDate() - 6); 
         document.getElementById('rmStartDate').value = dStart.toISOString().split('T')[0]; 
@@ -1786,18 +1860,38 @@ window.renderRekapMenuTab = () => {
             }); 
         } 
     });
+    
     let allItems = []; 
-    menusDB.forEach(m => { const sold = itemSales[m.nama] || 0; const rev = itemRevenue[m.nama] || 0; if(sold > 0) { allItems.push({ nama: m.nama, kategori: m.kategori, qty: sold, rev: rev }); } });
+    let kategories = ['ALL', 'MAKANAN', 'MINUMAN', 'TAMBAHAN'];
+    
+    menusDB.forEach(m => { 
+        const sold = itemSales[m.nama] || 0; 
+        const rev = itemRevenue[m.nama] || 0; 
+        if(!kategories.includes(m.kategori.toUpperCase())) kategories.push(m.kategori.toUpperCase());
+        if(sold > 0) { allItems.push({ nama: m.nama, kategori: m.kategori, qty: sold, rev: rev }); } 
+    });
+
+    const selectEl = document.getElementById('rmKategoriFilter');
+    if (selectEl && selectEl.options.length <= 1) {
+        selectEl.innerHTML = '';
+        kategories.forEach(k => { selectEl.innerHTML += `<option value="${k}">${k === 'ALL' ? 'SEMUA KATEGORI' : k}</option>`; });
+        selectEl.value = filterKategori;
+    }
+
+    let filteredItems = allItems;
+    if(filterKategori !== 'ALL') {
+        filteredItems = allItems.filter(m => m.kategori.toUpperCase() === filterKategori);
+    }
 
     const top5Cont = document.getElementById('top5MenuCards'); top5Cont.innerHTML = ''; 
-    const top5 = [...allItems].sort((a,b) => b.qty - a.qty).slice(0, 5);
+    const top5 = [...filteredItems].sort((a,b) => b.qty - a.qty).slice(0, 5);
     
     if(top5.length === 0) { top5Cont.innerHTML = `<div class="col-span-full p-4 text-center text-slate-400 font-bold text-xs bg-slate-50 rounded-2xl border border-dashed border-slate-200">Belum ada penjualan.</div>`; } 
     else { const colors = ['text-amber-500 bg-amber-50 border-amber-200', 'text-slate-500 bg-slate-50 border-slate-200', 'text-orange-500 bg-orange-50 border-orange-200', 'text-blue-500 bg-blue-50 border-blue-200', 'text-emerald-500 bg-emerald-50 border-emerald-200']; top5.forEach((m, idx) => { top5Cont.innerHTML += `<div class="bg-white border ${colors[idx].split(' ')[2]} rounded-xl p-3 flex flex-col items-center text-center shadow-sm relative overflow-hidden"><div class="absolute -right-2 -top-2 w-8 h-8 rounded-full ${colors[idx].split(' ')[1]} flex items-center justify-center font-black text-[10px] ${colors[idx].split(' ')[0]}">${idx+1}</div><h5 class="text-[10px] font-black text-slate-700 leading-tight mb-2 mt-1 h-6 flex items-center justify-center">${m.nama}</h5><div class="text-xl font-black ${colors[idx].split(' ')[0]} mb-1">${m.qty} <span class="text-[9px] text-slate-400 uppercase">Porsi</span></div><div class="text-[9px] font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-md">${formatIDR(m.rev)}</div></div>`; }); }
 
     const tbl = document.getElementById('tblRekapMenuTab'); tbl.innerHTML = '';
-    if(allItems.length === 0) { tbl.innerHTML = `<tr><td colspan="3" class="p-8 text-center text-slate-400 font-bold border-b border-dashed border-slate-200">Tidak ada data.</td></tr>`; } 
-    else { let kategories = [...new Set([...['MAKANAN', 'MINUMAN', 'TAMBAHAN'], ...allItems.map(m => m.kategori.toUpperCase())])]; kategories.forEach(cat => { let itemsInCat = allItems.filter(m => m.kategori.toUpperCase() === cat).sort((a,b) => b.qty - a.qty); if(itemsInCat.length > 0) { tbl.innerHTML += `<tr><td colspan="3" class="p-3 pl-5 bg-slate-50 font-black text-slate-600 text-[10px] uppercase tracking-widest border-y border-slate-100"><i class="fas fa-tag text-amber-500 mr-2"></i>KATEGORI: ${cat}</td></tr>`; itemsInCat.forEach(m => { tbl.innerHTML += `<tr class="hover:bg-slate-50 border-b border-slate-50 transition"><td class="p-4 pl-5 font-bold text-slate-700">${m.nama}</td><td class="p-4 text-center font-black text-emerald-600">${m.qty} Porsi</td><td class="p-4 text-right pr-6 font-black text-slate-800">${formatIDR(m.rev)}</td></tr>`; }); } }); }
+    if(allItems.length === 0) { tbl.innerHTML = `<tr><td colspan="3" class="p-8 text-center text-slate-400 font-bold border-b border-dashed border-slate-200">Tidak ada data keseluruhan.</td></tr>`; } 
+    else { let kategoriesAll = [...new Set([...['MAKANAN', 'MINUMAN', 'TAMBAHAN'], ...allItems.map(m => m.kategori.toUpperCase())])]; kategoriesAll.forEach(cat => { let itemsInCat = allItems.filter(m => m.kategori.toUpperCase() === cat).sort((a,b) => b.qty - a.qty); if(itemsInCat.length > 0) { tbl.innerHTML += `<tr><td colspan="3" class="p-3 pl-5 bg-slate-50 font-black text-slate-600 text-[10px] uppercase tracking-widest border-y border-slate-100"><i class="fas fa-tag text-amber-500 mr-2"></i>KATEGORI: ${cat}</td></tr>`; itemsInCat.forEach(m => { tbl.innerHTML += `<tr class="hover:bg-slate-50 border-b border-slate-50 transition"><td class="p-4 pl-5 font-bold text-slate-700">${m.nama}</td><td class="p-4 text-center font-black text-emerald-600">${m.qty} Porsi</td><td class="p-4 text-right pr-6 font-black text-slate-800">${formatIDR(m.rev)}</td></tr>`; }); } }); }
 };
 
 // INITIALIZE APP
