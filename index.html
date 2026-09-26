@@ -80,7 +80,8 @@
         <button id="tab-pengeluaran" onclick="switchTab('pengeluaran')" class="tab-btn hidden px-3 py-3 sm:px-4 sm:py-4 border-b-2 border-transparent hover:text-amber-600 flex items-center space-x-1.5 sm:space-x-2 whitespace-nowrap transition"><i class="fas fa-wallet text-sm"></i><span>Pengeluaran</span></button>
         <button id="tab-tutupbuku" onclick="switchTab('tutupbuku')" class="tab-btn hidden px-3 py-3 sm:px-4 sm:py-4 border-b-2 border-transparent hover:text-amber-600 flex items-center space-x-1.5 sm:space-x-2 whitespace-nowrap transition"><i class="fas fa-lock text-sm"></i><span>Tutup Buku</span></button>
         <button id="tab-kelolamenu" onclick="switchTab('kelolamenu')" class="tab-btn hidden px-3 py-3 sm:px-4 sm:py-4 border-b-2 border-transparent hover:text-amber-600 flex items-center space-x-1.5 sm:space-x-2 whitespace-nowrap transition"><i class="fas fa-burger text-sm"></i><span>Menu Kasir</span></button>
-        
+        <button id="tab-tongsampah" onclick="switchTab('tongsampah')" class="tab-btn hidden px-3 py-3 sm:px-4 sm:py-4 border-b-2 border-transparent hover:text-rose-600 flex items-center space-x-1.5 sm:space-x-2 whitespace-nowrap transition"><i class="fas fa-trash-alt text-sm"></i><span>Tong Sampah</span></button>
+
         <button id="tab-kelolastok" onclick="switchTab('kelolastok')" class="tab-btn hidden px-3 py-3 sm:px-4 sm:py-4 border-b-2 border-transparent hover:text-amber-600 flex items-center space-x-1.5 sm:space-x-2 whitespace-nowrap transition"><i class="fas fa-boxes-stacked text-sm"></i><span>Pantau Stok Gudang</span></button>
         <button id="tab-mutasistok" onclick="switchTab('mutasistok')" class="tab-btn hidden px-3 py-3 sm:px-4 sm:py-4 border-b-2 border-transparent hover:text-amber-600 flex items-center space-x-1.5 sm:space-x-2 whitespace-nowrap transition"><i class="fas fa-clipboard-check text-sm"></i><span>Mutasi Harian</span></button>
         <button id="tab-laporanstok" onclick="switchTab('laporanstok')" class="tab-btn hidden px-3 py-3 sm:px-4 sm:py-4 border-b-2 border-transparent hover:text-amber-600 flex items-center space-x-1.5 sm:space-x-2 whitespace-nowrap transition"><i class="fas fa-boxes text-sm"></i><span>Laporan Stok</span></button>
@@ -238,8 +239,21 @@
             </div>
 
             <div id="tb-manager-view" class="max-w-5xl mx-auto space-y-4 hidden">
-                <div class="bg-white p-5 rounded-3xl shadow-sm border border-slate-200 flex flex-col md:flex-row items-center justify-between gap-4"><h3 class="text-base font-black text-slate-800 flex items-center"><i class="fas fa-lock text-amber-500 mr-2"></i>Rekap Tutup Buku Kasir</h3><div class="flex flex-col sm:flex-row items-center space-y-3 sm:space-y-0 sm:space-x-3 w-full md:w-auto"><div class="flex items-center space-x-3 bg-slate-50 px-4 py-2.5 rounded-2xl border border-slate-100 w-full sm:w-auto"><i class="fas fa-calendar-alt text-amber-500"></i><input type="month" id="filterTbManager" onchange="renderManagerTutupBuku()" class="bg-transparent text-sm font-black text-slate-700 outline-none cursor-pointer uppercase tracking-widest w-full"></div><button onclick="exportExcelTutupBuku()" class="w-full sm:w-auto px-4 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white font-black text-[10px] sm:text-xs uppercase tracking-widest rounded-xl shadow-md transition flex items-center justify-center space-x-2"><i class="fas fa-file-excel text-sm"></i><span>Cetak Excel</span></button></div></div>
+                <div class="bg-white p-5 rounded-3xl shadow-sm border border-slate-200 flex flex-col md:flex-row items-center justify-between gap-4"><h3 class="text-base font-black text-slate-800 flex items-center"><i class="fas fa-lock text-amber-500 mr-2"></i>Rekap Tutup Buku Kasir</h3><div class="flex flex-col sm:flex-row items-center space-y-3 sm:space-y-0 sm:space-x-3 w-full md:w-auto"><div class="flex items-center space-x-3 bg-slate-50 px-4 py-2.5 rounded-2xl border border-slate-100 w-full sm:w-auto"><i class="fas fa-calendar-alt text-amber-500"></i><input type="month" id="filterTbManager" onchange="renderManagerTutupBuku()" class="bg-transparent text-sm font-black text-slate-700 outline-none cursor-pointer uppercase tracking-widest w-full"></div><button onclick="document.getElementById('modalExcelTb').classList.remove('hidden')" class="w-full sm:w-auto px-4 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white font-black text-[10px] sm:text-xs uppercase tracking-widest rounded-xl shadow-md transition flex items-center justify-center space-x-2"><i class="fas fa-file-excel text-sm"></i><span>Cetak Excel</span></button></div></div>
                 <div id="tbManagerList" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"></div>
+            </div>
+        </section>
+
+        <!-- VIEW: TONG SAMPAH -->
+        <section id="view-tongsampah" class="view-panel absolute inset-0 p-4 overflow-y-auto hidden">
+            <div class="max-w-4xl mx-auto space-y-4">
+                <div class="bg-white p-5 rounded-3xl shadow-sm border border-slate-200 flex items-center justify-between">
+                    <div>
+                        <h3 class="text-lg font-black text-slate-800 flex items-center space-x-2"><i class="fas fa-trash-alt text-rose-500"></i><span>Tong Sampah</span></h3>
+                        <p class="text-[10px] font-bold text-slate-400 mt-1 uppercase tracking-widest">Nota akan dihapus permanen otomatis setelah 48 jam</p>
+                    </div>
+                </div>
+                <div id="trashContainer" class="grid grid-cols-1 md:grid-cols-2 gap-4 content-start"></div>
             </div>
         </section>
 
@@ -312,6 +326,40 @@
 
     <!-- Modal Cetak Struk -->
     <div id="modalStruk" class="fixed inset-0 bg-slate-900/95 z-[100] hidden flex flex-col items-center justify-center p-4 backdrop-blur-sm"><div class="bg-white rounded-lg max-w-[320px] w-full p-6 shadow-2xl text-slate-800 animate-fade-in text-xs space-y-3 font-mono relative"><button onclick="document.getElementById('modalStruk').classList.add('hidden')" class="absolute -top-4 -right-4 w-10 h-10 bg-slate-800 text-white rounded-full font-bold flex items-center justify-center shadow-lg hover:bg-rose-500 transition z-10 border-2 border-slate-700"><i class="fas fa-times text-lg"></i></button><div class="text-center border-b-2 border-dashed border-slate-300 pb-3"><h2 class="font-black text-xl tracking-widest uppercase">PAWON NUSANTARA</h2><p class="text-[10px] text-slate-600 mt-1 font-bold">Jl. ST Aminuddin<br>0821 5431 6995</p><p id="strukWaktu" class="text-[10px] text-slate-500 mt-2 font-bold"></p></div><div class="flex justify-between text-[10px] border-b border-dashed border-slate-300 pb-2 font-bold text-slate-600 uppercase"><span id="strukNota">Nota: #01</span><span id="strukKasir">Kasir: Risma</span></div><div class="py-1 border-b border-dashed border-slate-200"><div class="flex justify-between text-[10px] font-bold text-slate-500 uppercase mb-1"><span>Customer/Meja:</span><span id="strukCustomerDetail" class="text-right text-slate-800">Umum / 01</span></div></div><div id="strukItems" class="space-y-1.5 border-b-2 border-dashed border-slate-300 py-3 min-h-[50px]"></div><div class="space-y-1.5 pt-2 pb-3 border-b-2 border-dashed border-slate-300"><div class="flex justify-between font-bold text-[10px]"><span class="text-slate-500 uppercase">Subtotal</span><span id="strukSubtotal">Rp 0</span></div><div class="flex justify-between font-bold text-[10px] text-rose-600"><span class="uppercase">Diskon</span><span id="strukDiskon">- Rp 0</span></div><div class="flex justify-between font-bold text-[10px] text-blue-600 hidden" id="strukGojekRow"><span class="uppercase">Potongan App</span><span id="strukGojekFee">- Rp 0</span></div><div class="flex justify-between font-bold text-[10px]"><span class="text-slate-500 uppercase">Tipe Order</span><span id="strukTipe">DINE IN</span></div><div class="flex justify-between font-bold text-[10px]"><span class="text-slate-500 uppercase">Metode Bayar</span><span id="strukMetode">CASH</span></div></div><div class="flex justify-between items-end pt-2 pb-1"><span class="text-xs font-black text-slate-800 uppercase tracking-widest">TOTAL</span><span id="strukTotal" class="text-xl font-black tracking-tighter">Rp 0</span></div><div class="text-center pt-5"><p class="text-[9px] font-bold text-slate-500 uppercase">TERIMA KASIH ATAS KUNJUNGAN ANDA</p></div></div><button onclick="printReceiptAction()" class="mt-8 px-8 py-4 bg-emerald-500 text-white rounded-full font-black text-sm uppercase tracking-widest shadow-xl hover:scale-105 transition flex items-center space-x-3"><i class="fas fa-print"></i><span>Cetak Ke Mesin Kasir</span></button></div>
+
+<!-- Modal Tarik Arsip -->
+    <div id="modalArsip" class="fixed inset-0 bg-slate-900/80 z-[100] hidden flex items-center justify-center p-4 backdrop-blur-sm">
+        <div class="bg-white rounded-3xl max-w-sm w-full p-6 shadow-2xl animate-fade-in relative overflow-hidden">
+            <div class="absolute top-0 left-0 w-full h-2 bg-emerald-500"></div>
+            <h3 class="text-base font-black mb-2 uppercase tracking-widest text-slate-800 text-center"><i class="fas fa-cloud-download-alt text-emerald-500 mr-2"></i>Tarik Data Arsip</h3>
+            <p class="text-[10px] text-slate-500 text-center mb-5 font-bold">Pilih rentang tanggal data yang ingin ditarik.</p>
+            <div class="space-y-3">
+                <div><label class="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Dari Tanggal</label><input type="date" id="arsipStart" class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-emerald-400 font-bold text-slate-700"></div>
+                <div><label class="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Sampai Tanggal</label><input type="date" id="arsipEnd" class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-emerald-400 font-bold text-slate-700"></div>
+            </div>
+            <div class="flex space-x-2 mt-6">
+                <button onclick="document.getElementById('modalArsip').classList.add('hidden')" class="flex-1 py-3 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold text-xs rounded-xl transition">Batal</button>
+                <button onclick="prosesTarikArsip()" class="flex-1 py-3 bg-emerald-500 hover:bg-emerald-600 text-white font-black uppercase tracking-widest text-xs rounded-xl shadow-md transition">Tarik Data</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Export Excel Tutup Buku -->
+    <div id="modalExcelTb" class="fixed inset-0 bg-slate-900/80 z-[100] hidden flex items-center justify-center p-4 backdrop-blur-sm">
+        <div class="bg-white rounded-3xl max-w-sm w-full p-6 shadow-2xl animate-fade-in relative overflow-hidden">
+            <div class="absolute top-0 left-0 w-full h-2 bg-emerald-500"></div>
+            <h3 class="text-base font-black mb-2 uppercase tracking-widest text-slate-800 text-center"><i class="fas fa-file-excel text-emerald-500 mr-2"></i>Cetak Excel Tutup Buku</h3>
+            <p class="text-[10px] text-slate-500 text-center mb-5 font-bold">Pilih rentang tanggal laporan (Maks. 60 Hari).</p>
+            <div class="space-y-3">
+                <div><label class="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Dari Tanggal</label><input type="date" id="excelTbStart" class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-emerald-400 font-bold text-slate-700"></div>
+                <div><label class="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Sampai Tanggal</label><input type="date" id="excelTbEnd" class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-emerald-400 font-bold text-slate-700"></div>
+            </div>
+            <div class="flex space-x-2 mt-6">
+                <button onclick="document.getElementById('modalExcelTb').classList.add('hidden')" class="flex-1 py-3 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold text-xs rounded-xl transition">Batal</button>
+                <button onclick="prosesExportExcelTb()" class="flex-1 py-3 bg-emerald-500 hover:bg-emerald-600 text-white font-black uppercase tracking-widest text-xs rounded-xl shadow-md transition">Download Excel</button>
+            </div>
+        </div>
+    </div>
 
     <script type="module" src="app.js"></script>
 </body>
