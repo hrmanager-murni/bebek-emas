@@ -1788,6 +1788,7 @@ window.renderManagerDashboard = () => {
         } 
     });
     if(taskAlertCount === 0 && taskCont) taskCont.innerHTML = `<div class="text-[10px] text-slate-400 font-bold text-center py-6 bg-slate-50 rounded-xl border border-dashed border-slate-200">Semua divisi sudah submit mutasi.</div>`;
+};
 
 // Fungsi Aksi Setujui & Tolak
 window.approveRequest = async (reqId, role, tgl) => {
