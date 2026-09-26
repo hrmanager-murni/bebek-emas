@@ -289,7 +289,7 @@ function proceedLogin(accountData) {
     document.getElementById('labelUserRole').innerText = currentUser.nama + " (" + currentUser.role + ")"; 
     document.getElementById('viewLanding').classList.add('hidden');
     
-    const allTabs = ['dashboard', 'rekapmenu', 'kasir', 'notatersimpan', 'laporan', 'pengeluaran', 'tutupbuku', 'kelolamenu', 'kelolastok', 'mutasistok', 'laporanstok'];
+    const allTabs = ['dashboard', 'rekapmenu', 'kasir', 'notatersimpan', 'laporan', 'pengeluaran', 'tutupbuku', 'kelolamenu', 'kelolastok', 'mutasistok', 'laporanstok', 'tongsampah'];
     allTabs.forEach(t => document.getElementById(`tab-${t}`).classList.add('hidden'));
 
     if (currentUser.role === 'admin') {
@@ -1743,46 +1743,51 @@ window.renderManagerDashboard = () => {
         }); 
     }
 
-    const approvalsCont = document.getElementById('managerApprovalsList');
-    const alertsCont = document.getElementById('managerAlertsList');
+    const approvalsCont = document.getElementById('notif-approval');
+    const stockCont = document.getElementById('notif-stock');
+    const taskCont = document.getElementById('notif-task');
     if(approvalsCont) approvalsCont.innerHTML = ''; 
-    if(alertsCont) alertsCont.innerHTML = '';
+    if(stockCont) stockCont.innerHTML = '';
+    if(taskCont) taskCont.innerHTML = '';
     
-    // 1. Notifikasi Persetujuan
+    // 1. Notifikasi Persetujuan (Tab Revisi)
     const pendingReqs = requestsDB.filter(r => r.type === 'unlock_mutasi');
     if(pendingReqs.length === 0 && approvalsCont) {
-        approvalsCont.innerHTML = `<div class="text-[10px] text-slate-400 font-bold text-center py-4 bg-slate-50 rounded-xl border border-dashed border-slate-200">Tidak ada pengajuan.</div>`;
+        approvalsCont.innerHTML = `<div class="text-[10px] text-slate-400 font-bold text-center py-6 bg-slate-50 rounded-xl border border-dashed border-slate-200">Tidak ada pengajuan.</div>`;
     } else if(approvalsCont) {
         pendingReqs.forEach(r => { 
             approvalsCont.innerHTML += `<div class="p-3 bg-blue-50 rounded-xl border border-blue-100 flex flex-col space-y-3 shadow-sm mb-3">
                 <div class="flex items-start space-x-2"><i class="fas fa-key text-blue-500 mt-0.5"></i><div><h5 class="text-xs font-black text-blue-700">Revisi Mutasi Harian</h5><p class="text-[10px] font-bold text-blue-600 uppercase tracking-widest">Divisi ${r.role} • Tgl: ${r.tanggal}</p></div></div>
                 <div class="flex space-x-2 pt-2 border-t border-blue-100">
-                    <button onclick="approveRequest('${r.id}', '${r.role}', '${r.tanggal}')" class="flex-1 py-1.5 bg-blue-500 hover:bg-blue-600 text-white font-black text-[9px] uppercase tracking-widest rounded-lg transition shadow-sm">Setujui Buka Kunci</button>
+                    <button onclick="approveRequest('${r.id}', '${r.role}', '${r.tanggal}')" class="flex-1 py-1.5 bg-blue-500 hover:bg-blue-600 text-white font-black text-[9px] uppercase tracking-widest rounded-lg transition shadow-sm">Setujui</button>
                     <button onclick="rejectRequest('${r.id}')" class="flex-1 py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-600 font-black text-[9px] uppercase tracking-widest rounded-lg transition">Tolak</button>
                 </div>
             </div>`; 
         });
     }
     
-    // 2. Peringatan Sistem (Stok & Tugas)
-    let alertCount = 0;
+    // 2. Peringatan Stok Kritis (Tab Stok)
+    let stockAlertCount = 0;
     stocksDB.filter(s => (parseFloat(s.stokSaatIni)||0) <= (parseFloat(s.stokMinimal)||0)).forEach(s => { 
-        alertCount++;
-        if(alertsCont) alertsCont.innerHTML += `<div class="p-3 bg-rose-50 rounded-xl border border-rose-100 flex items-start space-x-3 mb-2"><i class="fas fa-exclamation-circle text-rose-500 mt-0.5"></i><div><h5 class="text-xs font-black text-rose-700">Stok Kritis: ${s.nama}</h5><p class="text-[10px] font-bold text-rose-500">Sisa ${formatDec(s.stokSaatIni)} ${s.satuan}</p></div></div>`; 
+        stockAlertCount++;
+        if(stockCont) stockCont.innerHTML += `<div class="p-3 bg-rose-50 rounded-xl border border-rose-100 flex items-start space-x-3 mb-2"><i class="fas fa-exclamation-circle text-rose-500 mt-0.5"></i><div><h5 class="text-xs font-black text-rose-700">Stok Kritis: ${s.nama}</h5><p class="text-[10px] font-bold text-rose-500">Sisa ${formatDec(s.stokSaatIni)} ${s.satuan}</p></div></div>`; 
     });
-    
+    if(stockAlertCount === 0 && stockCont) stockCont.innerHTML = `<div class="text-[10px] text-slate-400 font-bold text-center py-6 bg-slate-50 rounded-xl border border-dashed border-slate-200">Stok aman terkendali.</div>`;
+
+    // 3. Peringatan Tugas (Tab Tugas) -> Perbaikan BUG UNDEFINED ada disini
+    let taskAlertCount = 0;
     const todayYMD = getTodayYMD(); 
-    const requiredRoles = [...new Set(stocksDB.map(s => s.role))].filter(r => r !== 'admin' && r !== ''); 
+    // Filter mengabaikan admin, teks kosong, nilai null, dan teks 'undefined'
+    const requiredRoles = [...new Set(stocksDB.map(s => s.role))].filter(r => r && r !== 'admin' && r !== 'undefined'); 
     const submittedRoles = [...new Set(mutasiDB.filter(m => m.tanggal === todayYMD).map(m => m.role))]; 
+    
     requiredRoles.forEach(r => { 
         if(!submittedRoles.includes(r)) { 
-            alertCount++;
-            if(alertsCont) alertsCont.innerHTML += `<div class="p-3 bg-amber-50 rounded-xl border border-amber-100 flex items-start space-x-3 mb-2"><i class="fas fa-clock text-amber-500 mt-0.5"></i><div><h5 class="text-xs font-black text-amber-700">Tugas Belum Selesai</h5><p class="text-[10px] font-bold text-amber-600 uppercase tracking-widest">Tim ${r} belum submit mutasi hari ini.</p></div></div>`; 
+            taskAlertCount++;
+            if(taskCont) taskCont.innerHTML += `<div class="p-3 bg-amber-50 rounded-xl border border-amber-100 flex items-start space-x-3 mb-2"><i class="fas fa-clock text-amber-500 mt-0.5"></i><div><h5 class="text-xs font-black text-amber-700">Tugas Belum Selesai</h5><p class="text-[10px] font-bold text-amber-600 uppercase tracking-widest">Tim ${r} belum submit mutasi.</p></div></div>`; 
         } 
     });
-    
-    if(alertCount === 0 && alertsCont) alertsCont.innerHTML = `<div class="p-5 text-center text-slate-400 font-bold bg-slate-50 rounded-2xl border border-slate-100 border-dashed"><i class="fas fa-check-circle text-2xl mb-2 text-emerald-400"></i><br>Tidak ada peringatan. Operasional sempurna!</div>`;
-};
+    if(taskAlertCount === 0 && taskCont) taskCont.innerHTML = `<div class="text-[10px] text-slate-400 font-bold text-center py-6 bg-slate-50 rounded-xl border border-dashed border-slate-200">Semua divisi sudah submit mutasi.</div>`;
 
 // Fungsi Aksi Setujui & Tolak
 window.approveRequest = async (reqId, role, tgl) => {
@@ -1915,9 +1920,12 @@ window.renderTrashUI = () => {
     });
 };
 
-window.restoreTrash = async (id) => {
-    const tb = trashedBillsDB.find(t => t.id === id);
-    if(!tb) return;
+    window.restoreTrash = async (id) => {
+    const dataAwal = trashedBillsDB.find(t => t.id === id);
+    if(!dataAwal) return;
+    
+    // Kloning data agar tidak merusak memori lokal browser yang memicu bug duplikat
+    const tb = JSON.parse(JSON.stringify(dataAwal)); 
     
     showLoading("Merestore Nota...");
     try {
@@ -1958,8 +1966,15 @@ window.restoreTrash = async (id) => {
 
 window.hapusPermanenTrash = (id) => {
     window.showModal("Hapus Permanen", "Nota ini akan lenyap selamanya dan tidak bisa dikembalikan. Lanjutkan?", async () => {
-        await deleteDoc(getDocRef('trashed_bills', id));
-        showToast("Dihapus permanen.");
+        showLoading("Menghapus Permanen...");
+        try {
+            await deleteDoc(getDocRef('trashed_bills', id));
+            showToast("Dihapus permanen.", "success");
+        } catch (err) {
+            console.error(err);
+            showToast("Gagal menghapus", "error");
+        }
+        hideLoading();
     });
 };
 // ------------------------------
@@ -2119,6 +2134,19 @@ window.prosesExportExcelTb = async () => {
         hideLoading();
         showToast("Gagal membuat Excel", "error");
     }
+};
+
+window.switchNotifTab = (tabName) => {
+    ['approval', 'stock', 'task'].forEach(t => {
+        document.getElementById(`notif-${t}`).classList.add('hidden');
+        const btn = document.getElementById(`btnNotif-${t}`);
+        btn.classList.remove('bg-white', 'text-blue-600', 'shadow-sm', 'border', 'border-slate-200');
+        btn.classList.add('text-slate-400');
+    });
+    document.getElementById(`notif-${tabName}`).classList.remove('hidden');
+    const activeBtn = document.getElementById(`btnNotif-${tabName}`);
+    activeBtn.classList.remove('text-slate-400');
+    activeBtn.classList.add('bg-white', 'text-blue-600', 'shadow-sm', 'border', 'border-slate-200');
 };
 
 // INITIALIZE APP
