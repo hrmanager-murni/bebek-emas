@@ -21,7 +21,7 @@ const getColRef = (colName) => collection(db, 'artifacts', appId, 'public', 'dat
 const getDocRef = (colName, docId) => doc(db, 'artifacts', appId, 'public', 'data', colName, docId);
 
 let currentUser = null;
-let accountsDB = [], menusDB = [], stocksDB = [], transactionsDB = [], expensesDB = [], mutasiDB = [], closeRegistersDB = [], savedBillsDB = [], requestsDB = [];
+let accountsDB = [], menusDB = [], stocksDB = [], transactionsDB = [], expensesDB = [], mutasiDB = [], closeRegistersDB = [], savedBillsDB = [], requestsDB = [], trashedBillsDB = [];
 let cart = [], tipeOrder = 'DineIn', isCloudReady = false;
 let discountInfo = { type: '%', value: 0, amount: 0 }; 
 let subtotalCart = 0;
@@ -248,51 +248,14 @@ function setupRealtimeSync() {
             if(col === 'stock_mutations') { mutasiDB = dataToUse; if(currentUser && currentUser.role === 'admin') { if(!document.getElementById('view-mutasistok').classList.contains('hidden')) renderManagerMutasi(); if(!document.getElementById('view-dashboard').classList.contains('hidden')) renderManagerDashboard(); } if(currentUser && currentUser.role !== 'admin' && !document.getElementById('view-mutasistok').classList.contains('hidden')) loadMutasiDataUI(); }
             if(col === 'saved_bills') { savedBillsDB = dataToUse; if(currentUser && ['kasir','admin'].includes(currentUser.role)){ document.getElementById('badgeSavedBills').innerText = dataToUse.length; document.getElementById('badgeSavedBills').classList.toggle('hidden', dataToUse.length === 0); if(!document.getElementById('view-notatersimpan').classList.contains('hidden')) renderSavedBillsUI(); } }
             if(col === 'requests') { requestsDB = dataToUse; if(currentUser && currentUser.role === 'admin' && !document.getElementById('view-dashboard').classList.contains('hidden')) renderManagerDashboard(); if(currentUser && currentUser.role !== 'admin' && !document.getElementById('view-mutasistok').classList.contains('hidden')) loadMutasiDataUI(); }
+            // TAMBAHAN SINKRONISASI TONG SAMPAH
+            if(col === 'trashed_bills') { trashedBillsDB = dataToUse; if(currentUser && currentUser.role === 'kasir' && !document.getElementById('view-tongsampah').classList.contains('hidden')) window.renderTrashUI(); }
         }, err => console.error(err));
     };
     
     handleSync('accounts'); handleSync('menus'); handleSync('stocks'); 
     handleSync('transactions'); handleSync('expenses'); handleSync('close_registers'); 
-    handleSync('stock_mutations'); handleSync('saved_bills'); handleSync('requests');
-}
-
-window.tarikDataArsip = async () => {
-    showLoading("Mengunduh Arsip Lama...\n(Ini memakan waktu)");
-    try {
-        const d = new Date(); d.setDate(d.getDate() - 30); 
-        const thirtyDaysAgo = d.toISOString().split('T')[0];
-        const fetchArchive = async (col) => { 
-            const q = query(getColRef(col), where('tanggal', '<', thirtyDaysAgo)); 
-            const snap = await getDocs(q); 
-            window.arsipData[col] = snap.docs.map(docItem => ({id: docItem.id, ...docItem.data()})); 
-        };
-        await Promise.all([fetchArchive('transactions'), fetchArchive('expenses'), fetchArchive('close_registers'), fetchArchive('stock_mutations')]);
-        
-        transactionsDB = Array.from(new Map([...window.arsipData['transactions'], ...transactionsDB].map(item => [item.id, item])).values());
-        expensesDB = Array.from(new Map([...window.arsipData['expenses'], ...expensesDB].map(item => [item.id, item])).values());
-        closeRegistersDB = Array.from(new Map([...window.arsipData['close_registers'], ...closeRegistersDB].map(item => [item.id, item])).values());
-        mutasiDB = Array.from(new Map([...window.arsipData['stock_mutations'], ...mutasiDB].map(item => [item.id, item])).values());
-
-        if(!document.getElementById('view-dashboard').classList.contains('hidden')) renderManagerDashboard();
-        if(!document.getElementById('view-laporan').classList.contains('hidden')) renderLaporanUI();
-        if(!document.getElementById('view-rekapmenu').classList.contains('hidden')) renderRekapMenuTab();
-        if(!document.getElementById('view-laporanstok').classList.contains('hidden')) renderLaporanStokUI();
-        if(!document.getElementById('view-tutupbuku').classList.contains('hidden')) renderManagerTutupBuku();
-        if(!document.getElementById('view-mutasistok').classList.contains('hidden')) renderManagerMutasi();
-        
-        showToast("Arsip Kuno Berhasil Ditarik!", "success");
-        const btn = document.getElementById('btnArsipKuno');
-        if(btn) { 
-            btn.innerHTML = '<i class="fas fa-check-circle text-lg"></i><span class="ml-2">ARSIP AKTIF</span>'; 
-            btn.classList.replace('bg-slate-900', 'bg-emerald-600'); 
-            btn.classList.replace('text-amber-400', 'text-white'); 
-            btn.classList.replace('border-slate-700', 'border-emerald-500'); 
-            btn.disabled = true; 
-        }
-    } catch (e) { 
-        console.error(e); showToast("Gagal menarik arsip kuno.", "error"); 
-    }
-    hideLoading();
+    handleSync('stock_mutations'); handleSync('saved_bills'); handleSync('requests'); handleSync('trashed_bills'); // TAMBAH DISINI JUGA
 };
 
 // LOGIN & AUTHENTICATION
@@ -346,7 +309,7 @@ function proceedLogin(accountData) {
             btn.id = 'btnArsipKuno'; 
             btn.innerHTML = '<i class="fas fa-cloud-download-alt text-lg"></i><span class="ml-2">Tarik Arsip Lama</span>'; 
             btn.className = 'fixed bottom-6 right-6 z-[90] bg-slate-900 text-amber-400 px-5 py-3.5 rounded-2xl shadow-[0_10px_25px_-5px_rgba(0,0,0,0.5)] font-black text-[10px] uppercase tracking-widest hover:bg-slate-800 transition transform hover:-translate-y-1 border border-slate-700 flex items-center justify-center'; 
-            btn.onclick = window.tarikDataArsip; 
+            btn.onclick = () => document.getElementById('modalArsip').classList.remove('hidden'); 
             document.body.appendChild(btn); 
         }
     } else {
@@ -354,7 +317,7 @@ function proceedLogin(accountData) {
         if(btn) btn.remove();
         
         if (currentUser.role === 'kasir') {
-            ['kasir', 'notatersimpan', 'laporan', 'pengeluaran', 'tutupbuku', 'kelolamenu'].forEach(t => document.getElementById(`tab-${t}`).classList.remove('hidden'));
+            ['kasir', 'notatersimpan', 'laporan', 'pengeluaran', 'tutupbuku', 'kelolamenu', 'tongsampah'].forEach(t => document.getElementById(`tab-${t}`).classList.remove('hidden'));
             window.switchTab('kasir'); 
             document.getElementById('filterTglLaporan').value = getTodayYMD(); 
             let dateInput = document.getElementById('tbInputTanggal'); 
@@ -407,6 +370,7 @@ window.switchTab = (tabName) => {
     else if (tabName === 'dashboard') window.renderManagerDashboard();
     else if (tabName === 'rekapmenu') window.renderRekapMenuTab();
     else if (tabName === 'kelolastok') window.renderKelolaStok();
+    else if (tabName === 'tongsampah') window.renderTrashUI();
 };
 
 // DISKON
@@ -498,10 +462,14 @@ window.bukaSavedBill = async (id) => {
 };
 
 window.hapusSavedBill = (id) => { 
-    window.showModal("Hapus Nota", "Yakin hapus permanen?", async () => { 
+    window.showModal("Pindah ke Tong Sampah", "Pindahkan nota tunda ini ke tong sampah?", async () => { 
         if(!auth.currentUser) return; 
-        await deleteDoc(getDocRef('saved_bills', id)); 
-        showToast("Dihapus."); 
+        const sb = savedBillsDB.find(s=>s.id===id);
+        if(sb) {
+            await addDoc(getColRef('trashed_bills'), { ...sb, deleteTimestamp: Date.now(), originalSource: 'saved_bills' });
+            await deleteDoc(getDocRef('saved_bills', id)); 
+            showToast("Dipindah ke Tong Sampah."); 
+        }
     }); 
 };
 
@@ -909,7 +877,7 @@ window.renderLaporanUI = () => {
 };
 
 window.hapusNota = (id) => { 
-    window.showModal("Batalkan Transaksi", "Nota akan di-Void dan stok otomatis dikembalikan. Lanjutkan?", async () => { 
+    window.showModal("Batalkan Transaksi", "Nota akan dibatalkan, stok dikembalikan, dan nota dipindah ke Tong Sampah. Lanjutkan?", async () => { 
         if(!auth.currentUser) return; 
         showLoading("Membatalkan..."); 
         try { 
@@ -930,10 +898,12 @@ window.hapusNota = (id) => {
                         await setDoc(getDocRef('stocks', stok.id), { stokSaatIni: formatDec(currentStock + totalKembali) }, { merge: true }); 
                     } 
                 } 
+                // Simpan ke tong sampah, lalu hapus dari laporan utama
+                await addDoc(getColRef('trashed_bills'), { ...trx, status: 'Batal/Void', deleteTimestamp: Date.now(), originalSource: 'transactions' });
+                await deleteDoc(getDocRef('transactions', id));
             } 
-            await setDoc(getDocRef('transactions', id), { status: 'Batal/Void' }, { merge: true }); 
             hideLoading(); 
-            showToast("Nota Dibatalkan & Stok Kembali!", "success"); 
+            showToast("Nota Dibatalkan & Pindah ke Tong Sampah!", "success"); 
         } catch(err) { 
             console.error(err); 
             hideLoading(); 
@@ -1083,7 +1053,7 @@ window.renderManagerTutupBuku = () => {
     
     const btnContainer = document.createElement('div');
     btnContainer.className = 'col-span-full mb-2 flex justify-end';
-    btnContainer.innerHTML = `<button onclick="exportExcelTutupBuku()" class="px-5 py-3 bg-emerald-500 hover:bg-emerald-600 text-white font-black text-xs uppercase tracking-widest rounded-xl shadow-md transition flex items-center space-x-2"><i class="fas fa-file-excel text-lg"></i><span>Download Excel Profesional</span></button>`;
+    btnContainer.innerHTML = `<button onclick="document.getElementById('modalExcelTb').classList.remove('hidden')" class="px-5 py-3 bg-emerald-500 hover:bg-emerald-600 text-white font-black text-xs uppercase tracking-widest rounded-xl shadow-md transition flex items-center space-x-2"><i class="fas fa-file-excel text-lg"></i><span>Download Excel Profesional</span></button>`;
     container.appendChild(btnContainer);
 
     const data = closeRegistersDB.filter(c => c.tanggal.startsWith(bln)).sort((a,b) => b.timestamp - a.timestamp);
@@ -1893,6 +1863,262 @@ window.renderRekapMenuTab = () => {
     const tbl = document.getElementById('tblRekapMenuTab'); tbl.innerHTML = '';
     if(allItems.length === 0) { tbl.innerHTML = `<tr><td colspan="3" class="p-8 text-center text-slate-400 font-bold border-b border-dashed border-slate-200">Tidak ada data keseluruhan.</td></tr>`; } 
     else { let kategoriesAll = [...new Set([...['MAKANAN', 'MINUMAN', 'TAMBAHAN'], ...allItems.map(m => m.kategori.toUpperCase())])]; kategoriesAll.forEach(cat => { let itemsInCat = allItems.filter(m => m.kategori.toUpperCase() === cat).sort((a,b) => b.qty - a.qty); if(itemsInCat.length > 0) { tbl.innerHTML += `<tr><td colspan="3" class="p-3 pl-5 bg-slate-50 font-black text-slate-600 text-[10px] uppercase tracking-widest border-y border-slate-100"><i class="fas fa-tag text-amber-500 mr-2"></i>KATEGORI: ${cat}</td></tr>`; itemsInCat.forEach(m => { tbl.innerHTML += `<tr class="hover:bg-slate-50 border-b border-slate-50 transition"><td class="p-4 pl-5 font-bold text-slate-700">${m.nama}</td><td class="p-4 text-center font-black text-emerald-600">${m.qty} Porsi</td><td class="p-4 text-right pr-6 font-black text-slate-800">${formatIDR(m.rev)}</td></tr>`; }); } }); }
+};
+
+// --- FITUR TONG SAMPAH KASIR ---
+window.renderTrashUI = () => {
+    const container = document.getElementById('trashContainer');
+    container.innerHTML = '';
+    
+    // Logika Auto-delete (48 Jam = 48 * 60 * 60 * 1000 milidetik)
+    const now = Date.now();
+    const fortyEightHours = 48 * 60 * 60 * 1000;
+    
+    let validTrash = [];
+    trashedBillsDB.forEach(tb => {
+        if(now - tb.deleteTimestamp > fortyEightHours) {
+            deleteDoc(getDocRef('trashed_bills', tb.id)); // Hapus permanen dari Cloud jika lebih 48 jam
+        } else {
+            validTrash.push(tb);
+        }
+    });
+
+    if(validTrash.length === 0) {
+        container.innerHTML = `<div class="col-span-full p-8 text-center text-slate-400 font-bold bg-white border border-slate-200 border-dashed rounded-3xl"><i class="fas fa-trash-alt text-4xl mb-3 opacity-50 block"></i>Tong sampah kosong.</div>`;
+        return;
+    }
+
+    validTrash.sort((a,b) => b.deleteTimestamp - a.deleteTimestamp).forEach(tb => {
+        let title = tb.originalSource === 'saved_bills' ? `Nota Tunda: ${tb.namaTunda}` : `Trx #${tb.noNota}`;
+        let badgeColor = tb.originalSource === 'saved_bills' ? 'bg-amber-100 text-amber-700' : 'bg-rose-100 text-rose-700';
+        let badgeText = tb.originalSource === 'saved_bills' ? 'DARI NOTA TUNDA' : 'DARI TRANSAKSI';
+        
+        let timeLeftMs = fortyEightHours - (now - tb.deleteTimestamp);
+        let hoursLeft = Math.floor(timeLeftMs / (1000 * 60 * 60));
+        if(hoursLeft < 1) hoursLeft = "< 1";
+        
+        container.innerHTML += `<div class="bg-white p-5 rounded-3xl shadow-sm border border-slate-200 flex flex-col justify-between group hover:border-rose-400 transition">
+            <div>
+                <div class="flex justify-between items-start mb-2">
+                    <span class="px-2.5 py-1 ${badgeColor} text-[9px] font-black uppercase tracking-widest rounded-lg">${badgeText}</span>
+                    <span class="text-[9px] font-bold text-rose-500 bg-rose-50 px-2 py-1 rounded-md uppercase tracking-widest border border-rose-100"><i class="fas fa-clock mr-1"></i>Sisa ${hoursLeft} Jam</span>
+                </div>
+                <h4 class="text-sm font-black text-slate-800 mb-1">${title}</h4>
+                <p class="text-[10px] text-slate-500 font-medium">Customer: ${tb.customer} | Kasir: ${tb.kasir}</p>
+                <p class="text-[10px] text-slate-500 font-medium mt-1">Total: <span class="font-black">${formatIDR(tb.total || tb.subtotal)}</span></p>
+            </div>
+            <div class="flex space-x-2 mt-4 pt-4 border-t border-slate-100">
+                <button onclick="restoreTrash('${tb.id}')" class="flex-1 py-2.5 bg-emerald-50 hover:bg-emerald-500 text-emerald-600 hover:text-white font-black text-xs uppercase tracking-widest rounded-xl transition shadow-sm border border-emerald-200"><i class="fas fa-trash-restore mr-2"></i>Restore</button>
+                <button onclick="hapusPermanenTrash('${tb.id}')" title="Hapus Permanen Sekarang" class="w-10 h-10 bg-rose-50 text-rose-500 hover:bg-rose-500 hover:text-white rounded-xl transition flex items-center justify-center border border-rose-100"><i class="fas fa-times"></i></button>
+            </div>
+        </div>`;
+    });
+};
+
+window.restoreTrash = async (id) => {
+    const tb = trashedBillsDB.find(t => t.id === id);
+    if(!tb) return;
+    
+    showLoading("Merestore Nota...");
+    try {
+        let originalSource = tb.originalSource;
+        delete tb.originalSource;
+        delete tb.deleteTimestamp;
+        
+        if (originalSource === 'transactions') {
+            tb.status = 'Aktif'; // Set kembali ke status Aktif
+            // Karena jadi aktif lagi, potong kembali stok gudangnya
+            let itemsTerjual = {}; 
+            tb.cart.forEach(c => { itemsTerjual[c.nama.toLowerCase()] = (itemsTerjual[c.nama.toLowerCase()] || 0) + c.qty; });
+            
+            for (let stok of stocksDB) { 
+                if (!stok.menuTerkait) continue; 
+                const menusTerkait = stok.menuTerkait.split(',').map(m => m.trim().toLowerCase()); 
+                let totalPotong = 0; 
+                for (let nama in itemsTerjual) { 
+                    if (menusTerkait.includes(nama)) totalPotong += itemsTerjual[nama]; 
+                } 
+                if (totalPotong > 0) { 
+                    let currentStock = parseFloat(stok.stokSaatIni) || 0;
+                    await setDoc(getDocRef('stocks', stok.id), { stokSaatIni: formatDec(currentStock - totalPotong) }, { merge: true }); 
+                } 
+            }
+            await setDoc(getDocRef('transactions', id), tb); // Tarik kembali doc dengan id yang sama
+        } else {
+            await setDoc(getDocRef('saved_bills', id), tb); // Kembalikan ke nota tunda
+        }
+        
+        await deleteDoc(getDocRef('trashed_bills', id)); // Hapus dari tong sampah
+        hideLoading();
+        showToast("Nota Berhasil Direstore!", "success");
+    } catch(e) {
+        console.error(e); hideLoading(); showToast("Gagal merestore", "error");
+    }
+};
+
+window.hapusPermanenTrash = (id) => {
+    window.showModal("Hapus Permanen", "Nota ini akan lenyap selamanya dan tidak bisa dikembalikan. Lanjutkan?", async () => {
+        await deleteDoc(getDocRef('trashed_bills', id));
+        showToast("Dihapus permanen.");
+    });
+};
+// ------------------------------
+
+window.prosesTarikArsip = async () => {
+    const startDate = document.getElementById('arsipStart').value;
+    const endDate = document.getElementById('arsipEnd').value;
+    
+    if(!startDate || !endDate) return showToast("Pilih rentang tanggal!", "error");
+    if(startDate > endDate) return showToast("Tanggal tidak valid!", "error");
+    
+    document.getElementById('modalArsip').classList.add('hidden');
+    showLoading("Mengunduh Arsip...\n(Ini memakan waktu)");
+    try {
+        const fetchArchive = async (col) => { 
+            const q = query(getColRef(col), where('tanggal', '>=', startDate), where('tanggal', '<=', endDate)); 
+            const snap = await getDocs(q); 
+            return snap.docs.map(docItem => ({id: docItem.id, ...docItem.data()})); 
+        };
+        
+        const [trx, exp, cr, mut] = await Promise.all([fetchArchive('transactions'), fetchArchive('expenses'), fetchArchive('close_registers'), fetchArchive('stock_mutations')]);
+        
+        transactionsDB = Array.from(new Map([...trx, ...transactionsDB].map(item => [item.id, item])).values());
+        expensesDB = Array.from(new Map([...exp, ...expensesDB].map(item => [item.id, item])).values());
+        closeRegistersDB = Array.from(new Map([...cr, ...closeRegistersDB].map(item => [item.id, item])).values());
+        mutasiDB = Array.from(new Map([...mut, ...mutasiDB].map(item => [item.id, item])).values());
+
+        if(!document.getElementById('view-dashboard').classList.contains('hidden')) renderManagerDashboard();
+        if(!document.getElementById('view-laporan').classList.contains('hidden')) renderLaporanUI();
+        if(!document.getElementById('view-rekapmenu').classList.contains('hidden')) renderRekapMenuTab();
+        if(!document.getElementById('view-laporanstok').classList.contains('hidden')) renderLaporanStokUI();
+        if(!document.getElementById('view-tutupbuku').classList.contains('hidden')) renderManagerTutupBuku();
+        if(!document.getElementById('view-mutasistok').classList.contains('hidden')) renderManagerMutasi();
+        
+        showToast("Arsip Berhasil Ditarik!", "success");
+    } catch (e) { 
+        console.error(e); showToast("Gagal menarik arsip.", "error"); 
+    }
+    hideLoading();
+};
+
+window.prosesExportExcelTb = async () => {
+    const startDate = document.getElementById('excelTbStart').value;
+    const endDate = document.getElementById('excelTbEnd').value;
+    
+    if(!startDate || !endDate) return showToast("Pilih rentang tanggal!", "error");
+    if(startDate > endDate) return showToast("Rentang tidak valid!", "error");
+
+    const diffDays = (new Date(endDate) - new Date(startDate)) / (1000 * 60 * 60 * 24);
+    if(diffDays > 60) return showToast("Maksimal rentang 60 hari!", "error");
+
+    document.getElementById('modalExcelTb').classList.add('hidden');
+    showLoading("Mengambil Data Server...");
+
+    try {
+        const q = query(getColRef('close_registers'), where('tanggal', '>=', startDate), where('tanggal', '<=', endDate));
+        const snap = await getDocs(q);
+        let data = snap.docs.map(docItem => ({id: docItem.id, ...docItem.data()}));
+        
+        data.sort((a,b) => a.tanggal.localeCompare(b.tanggal));
+
+        if(data.length === 0) {
+            hideLoading();
+            return showToast("Tidak ada data di rentang ini.", "error");
+        }
+
+        if (typeof ExcelJS === 'undefined') {
+            hideLoading();
+            return showToast("Alat pembuat Excel belum siap.", "error");
+        }
+
+        showLoading("Mencetak Excel...");
+        const wb = new ExcelJS.Workbook();
+        const ws = wb.addWorksheet('Laporan Tutup Buku');
+        
+        ws.columns = [
+            { header: '', key: 'tgl', width: 15 }, { header: '', key: 'kasir', width: 18 },
+            { header: '', key: 'awal', width: 18 }, { header: '', key: 'out', width: 18 },
+            { header: '', key: 'cash', width: 18 }, { header: '', key: 'tf', width: 18 },
+            { header: '', key: 'ditinggal', width: 18 }, { header: '', key: 'fisik', width: 20 },
+            { header: '', key: 'selisih', width: 22 }
+        ];
+
+        ws.mergeCells('A1:I1');
+        const titleRow = ws.getCell('A1');
+        titleRow.value = 'LAPORAN TUTUP BUKU - PAWON NUSANTARA';
+        titleRow.font = { size: 16, bold: true };
+        titleRow.alignment = { horizontal: 'center', vertical: 'middle' };
+        titleRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFD700' } }; 
+
+        ws.mergeCells('A2:I2');
+        ws.getCell('A2').value = `Periode: ${startDate.split('-').reverse().join('/')} s/d ${endDate.split('-').reverse().join('/')}`;
+        ws.getCell('A2').font = { bold: true };
+        ws.getCell('A2').alignment = { horizontal: 'center' };
+
+        ws.mergeCells('A3:I3');
+        const d = new Date();
+        ws.getCell('A3').value = `Dicetak pada: ${d.getDate()}/${d.getMonth()+1}/${d.getFullYear()} ${d.getHours()}:${d.getMinutes()}`;
+        ws.getCell('A3').font = { italic: true };
+        ws.getCell('A3').alignment = { horizontal: 'center' };
+
+        const headers = ['Tanggal', 'Nama Kasir', 'Angsulan Awal', 'Pengeluaran', 'Total Cash', 'Total TF', 'Angsulan Ditinggal', 'Setoran Fisik Real', 'Status Selisih'];
+        ws.addRow(headers);
+        const headerRow = ws.getRow(5);
+        headerRow.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+        headerRow.alignment = { horizontal: 'center', vertical: 'middle' };
+        
+        for(let i = 1; i <= 9; i++) {
+            ws.getCell(5, i).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF333333' } };
+        }
+
+        let sumAwal = 0, sumOut = 0, sumCash = 0, sumTf = 0, sumDitinggal = 0, sumFisik = 0, sumSelisih = 0;
+
+        data.forEach(item => {
+            sumAwal += item.angsulanAwal || 0; sumOut += item.pengeluaran || 0;
+            sumCash += item.penjualanCash || 0; sumTf += item.penjualanTf || 0;
+            sumDitinggal += item.angsulanDitinggal || 0; sumFisik += item.setoranCashReal || 0;
+            sumSelisih += item.selisihSetoran || 0;
+
+            let selisihTeks = item.selisihSetoran === 0 ? 'KLOP (Rp 0)' : (item.selisihSetoran > 0 ? `+ Rp ${item.selisihSetoran.toLocaleString('id-ID')}` : `- Rp ${Math.abs(item.selisihSetoran).toLocaleString('id-ID')}`);
+            
+            const row = ws.addRow([
+                item.tanggal.split('-').reverse().join('/'), item.kasir, item.angsulanAwal,
+                item.pengeluaran, item.penjualanCash, item.penjualanTf,
+                item.angsulanDitinggal, item.setoranCashReal, selisihTeks
+            ]);
+
+            for(let i = 3; i <= 8; i++) { row.getCell(i).numFmt = '"Rp" #,##0'; }
+            
+            const sel = row.getCell(9);
+            sel.font = { bold: true };
+            if (item.selisihSetoran < 0) sel.font.color = { argb: 'FFFF0000' };
+            else if (item.selisihSetoran > 0) sel.font.color = { argb: 'FF0000FF' };
+            else sel.font.color = { argb: 'FF008000' };
+        });
+
+        const totalRow = ws.addRow([ 'TOTAL AKUMULASI', '', sumAwal, sumOut, sumCash, sumTf, sumDitinggal, sumFisik, sumSelisih < 0 ? `- Rp ${Math.abs(sumSelisih).toLocaleString('id-ID')}` : `+ Rp ${sumSelisih.toLocaleString('id-ID')}` ]);
+        totalRow.font = { bold: true };
+        totalRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFFFE0' } };
+        for(let i = 3; i <= 8; i++) { totalRow.getCell(i).numFmt = '"Rp" #,##0'; }
+
+        ws.views = [{ state: 'frozen', ySplit: 5 }];
+
+        const buffer = await wb.xlsx.writeBuffer();
+        const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `Tutup_Buku_${startDate}_sd_${endDate}.xlsx`;
+        a.click();
+        window.URL.revokeObjectURL(url);
+        
+        hideLoading();
+        showToast("Excel berhasil diunduh!", "success");
+    } catch (e) {
+        console.error(e);
+        hideLoading();
+        showToast("Gagal membuat Excel", "error");
+    }
 };
 
 // INITIALIZE APP
