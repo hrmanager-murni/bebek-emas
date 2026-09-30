@@ -1958,6 +1958,11 @@ window.renderTrashUI = () => {
         }
         
         await deleteDoc(getDocRef('trashed_bills', id)); // Hapus dari tong sampah
+        
+        // TAMBAHAN: Hapus paksa dari memori lokal dan segarkan layar
+        trashedBillsDB = trashedBillsDB.filter(item => item.id !== id);
+        window.renderTrashUI();
+        
         hideLoading();
         showToast("Nota Berhasil Direstore!", "success");
     } catch(e) {
@@ -1970,6 +1975,11 @@ window.hapusPermanenTrash = (id) => {
         showLoading("Menghapus Permanen...");
         try {
             await deleteDoc(getDocRef('trashed_bills', id));
+            
+            // TAMBAHAN: Hapus paksa dari memori lokal dan segarkan layar
+            trashedBillsDB = trashedBillsDB.filter(item => item.id !== id);
+            window.renderTrashUI();
+            
             showToast("Dihapus permanen.", "success");
         } catch (err) {
             console.error(err);
