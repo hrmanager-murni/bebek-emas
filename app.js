@@ -107,6 +107,55 @@ window.connectPrinter = async () => {
     }
 };
 
+window.kirimNotaWA = () => {
+    let noWa = document.getElementById('inputWaNota').value.trim();
+    if(!noWa) return showToast("Masukkan nomor WA pelanggan!", "error");
+    
+    // Format otomatis: ubah awalan 0 menjadi kode negara 62
+    if(noWa.startsWith('0')) noWa = '62' + noWa.substring(1);
+    else if(!noWa.startsWith('62')) noWa = '62' + noWa;
+
+    const p = window.lastPrintedPayload;
+    if(!p) return showToast("Data nota tidak ditemukan!", "error");
+
+    // Susun format teks rapi untuk dikirim via WA
+    let text = `*PAWON NUSANTARA*\n`;
+    text += `Jl. ST Aminuddin | 0821 5431 6995\n`;
+    text += `--------------------------------\n`;
+    text += `Nota: #${p.noNota} | Kasir: ${p.kasir}\n`;
+    text += `Cust: ${p.customer} / Meja: ${p.meja}\n`;
+    text += `Waktu: ${p.waktu}\n`;
+    text += `--------------------------------\n`;
+    
+    p.cart.forEach(c => {
+        let harga = p.tipeOrder === 'DineIn' ? c.hargaDineIn : c.hargaGojek;
+        text += `${c.nama} (x${c.qty})\nRp ${formatIDRPlain(harga * c.qty)}\n`;
+    });
+    
+    text += `--------------------------------\n`;
+    text += `Subtotal : Rp ${formatIDRPlain(p.subtotal)}\n`;
+    if(p.diskonRp > 0) text += `Diskon   : - Rp ${formatIDRPlain(p.diskonRp)}\n`;
+    
+    let totalAkhir = p.totalBayar !== undefined ? p.totalBayar : (p.subtotal - p.diskonRp);
+    text += `*TOTAL    : Rp ${formatIDRPlain(totalAkhir)}*\n`;
+    text += `Tipe Order: ${p.tipeOrder}\n`;
+    
+    if(p.pembayaran === 'MIX') {
+        text += `Metode   : MIX PAY\n(Cash: Rp ${formatIDRPlain(p.mixCash)} | TF: Rp ${formatIDRPlain(p.mixTf)})\n`;
+    } else {
+        text += `Metode   : ${p.pembayaran}\n`;
+    }
+    
+    text += `--------------------------------\n`;
+    text += `Follow IG kami @rmpawonnusantara untuk info menarik`;
+    text += `Terima kasih atas kunjungan Anda!`;
+
+    // Eksekusi buka tab baru ke WhatsApp
+    const url = `https://wa.me/${noWa}?text=${encodeURIComponent(text)}`;
+    window.open(url, '_blank');
+    document.getElementById('inputWaNota').value = ''; // Reset form
+};
+
 window.printReceiptAction = async () => {
     if (window.thermalPrinter && window.thermalPrinter.connected && window.lastPrintedPayload) {
         try {
@@ -185,12 +234,8 @@ window.cetakStrukPreview = (payload) => {
     document.getElementById('strukDiskon').innerText = "- " + formatIDRPlain(payload.diskonRp);
     
     const gojekRow = document.getElementById('strukGojekRow');
-    if(payload.tipeOrder === 'Gojek' && payload.gojekFee > 0) {
-        gojekRow.classList.remove('hidden');
-        document.getElementById('strukGojekFee').innerText = "- " + formatIDRPlain(payload.gojekFee);
-    } else {
-        gojekRow.classList.add('hidden');
-    }
+    // Selalu sembunyikan potongan app dari nota agar pelanggan tidak bingung
+    gojekRow.classList.add('hidden');
     
     document.getElementById('strukTipe').innerText = payload.tipeOrder;
     document.getElementById('strukMetode').innerText = payload.pembayaran;
@@ -221,12 +266,22 @@ async function initApp() {
 }
 
 function setupRealtimeSync() {
-    const d = new Date(); d.setDate(d.getDate() - 30); 
-    const thirtyDaysAgo = d.toISOString().split('T')[0];
+    // Siapkan batas 30 hari (untuk data ringan) dan batas 3 hari (untuk data berat)
+    const d30 = new Date(); d30.setDate(d30.getDate() - 30); 
+    const thirtyDaysAgo = d30.toISOString().split('T')[0];
+    
+    const d3 = new Date(); d3.setDate(d3.getDate() - 3);
+    const threeDaysAgo = d3.toISOString().split('T')[0];
     
     const handleSync = (col) => {
         let dbRef = getColRef(col);
-        if (['transactions', 'expenses', 'stock_mutations', 'close_registers'].includes(col)) {
+        
+        // Pisahkan data berat agar ditarik hanya 3 hari ke belakang untuk menghemat kuota
+        if (['transactions', 'stock_mutations'].includes(col)) {
+            dbRef = query(getColRef(col), where('tanggal', '>=', threeDaysAgo));
+        } 
+        // Data ringan tetap ditarik 30 hari untuk kebutuhan Grafik Dashboard Manager
+        else if (['expenses', 'close_registers'].includes(col)) {
             dbRef = query(getColRef(col), where('tanggal', '>=', thirtyDaysAgo));
         }
 
@@ -1445,7 +1500,23 @@ window.loadMutasiDataUI = () => {
             const draftKey = `${currentUser.role}_${tglFilter}_${stokItem.id}`; 
             const dLocal = window.mutasiDrafts[draftKey] || {};
             let dataTersimpan = mutasiDB.find(m => m.tanggal === tglFilter && m.idStok === stokItem.id); 
-            let sisaKemarin = dataTersimpan ? dataTersimpan.sisaKemarin : formatDec((parseFloat(stokItem.stokSaatIni) || 0) + potongKasir);
+            
+            // Cari mutasi terakhir sebelum tanggal yang sedang dibuka
+            let riwayatMutasi = mutasiDB.filter(m => m.idStok === stokItem.id && m.tanggal < tglFilter);
+            riwayatMutasi.sort((a, b) => a.tanggal.localeCompare(b.tanggal));
+            let mutasiTerakhir = riwayatMutasi.length > 0 ? riwayatMutasi[riwayatMutasi.length - 1] : null;
+
+            let sisaKemarin;
+            if (dataTersimpan) {
+                // Jika sudah pernah disimpan di hari yang sama, gunakan data tersebut
+                sisaKemarin = dataTersimpan.sisaKemarin;
+            } else if (mutasiTerakhir && mutasiTerakhir.fisik !== '') {
+                // Ambil angka FISIK REAL dari laporan H-1 (atau laporan mutasi terakhir)
+                sisaKemarin = parseFloat(mutasiTerakhir.fisik) || 0;
+            } else {
+                // Fallback jika belum pernah mutasi sama sekali
+                sisaKemarin = formatDec((parseFloat(stokItem.stokSaatIni) || 0) + potongKasir);
+            }
             
             const masuk = dataTersimpan ? dataTersimpan.masuk : (dLocal.masuk || 0); 
             const manual = dataTersimpan ? dataTersimpan.manual : (dLocal.manual || 0); 
@@ -1997,6 +2068,10 @@ window.prosesTarikArsip = async () => {
     if(!startDate || !endDate) return showToast("Pilih rentang tanggal!", "error");
     if(startDate > endDate) return showToast("Tanggal tidak valid!", "error");
     
+    // Tambahan perlindungan: Tolak jika rentang waktu melebihi 30 hari
+    const diffDays = (new Date(endDate) - new Date(startDate)) / (1000 * 60 * 60 * 24);
+    if(diffDays > 30) return showToast("Maksimal tarik data 30 hari!", "error");
+    
     document.getElementById('modalArsip').classList.add('hidden');
     showLoading("Mengunduh Arsip...\n(Ini memakan waktu)");
     try {
@@ -2159,6 +2234,23 @@ window.switchNotifTab = (tabName) => {
     activeBtn.classList.remove('text-slate-400');
     activeBtn.classList.add('bg-white', 'text-blue-600', 'shadow-sm', 'border', 'border-slate-200');
 };
+
+// INDIKATOR OFFLINE / ONLINE KASIR
+window.addEventListener('offline', () => {
+    const status = document.getElementById('koneksiStatus');
+    status.className = "flex items-center space-x-1 px-2 py-1 sm:py-1.5 bg-rose-500/10 text-rose-500 rounded-lg text-[8px] sm:text-[9px] font-black border border-rose-500/20 tracking-wider transition-all duration-300";
+    document.getElementById('koneksiDot').className = "w-1.5 h-1.5 bg-rose-500 rounded-full";
+    document.getElementById('koneksiTeks').innerText = "OFFLINE (LOKAL)";
+    showToast("Koneksi terputus! Data disimpan lokal sementara.", "error");
+});
+
+window.addEventListener('online', () => {
+    const status = document.getElementById('koneksiStatus');
+    status.className = "flex items-center space-x-1 px-2 py-1 sm:py-1.5 bg-emerald-500/10 text-emerald-400 rounded-lg text-[8px] sm:text-[9px] font-black border border-emerald-500/20 tracking-wider transition-all duration-300";
+    document.getElementById('koneksiDot').className = "w-1.5 h-1.5 bg-emerald-400 rounded-full animate-pulse";
+    document.getElementById('koneksiTeks').innerText = "CLOUD AKTIF";
+    showToast("Internet kembali! Menyelaraskan data ke server...", "success");
+});
 
 // INITIALIZE APP
 initApp();
