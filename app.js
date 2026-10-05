@@ -273,6 +273,14 @@ function setupRealtimeSync() {
     const d3 = new Date(); d3.setDate(d3.getDate() - 3);
     const threeDaysAgo = d3.toISOString().split('T')[0];
     
+    let initialLoad = { accounts: false, menus: false, stocks: false };
+    const checkReady = () => {
+        if (initialLoad.accounts && initialLoad.menus && initialLoad.stocks && !isCloudReady) {
+            isCloudReady = true;
+            hideLoading();
+        }
+    };
+    
     const handleSync = (col) => {
         let dbRef = getColRef(col);
         
@@ -294,9 +302,9 @@ function setupRealtimeSync() {
                 dataToUse = Array.from(new Map(merged.map(item => [item.id, item])).values()); 
             }
 
-            if(col === 'accounts') { accountsDB = dataToUse; if(!isCloudReady){ isCloudReady=true; hideLoading();} }
-            if(col === 'menus') { menusDB = dataToUse; if(currentUser && ['kasir','admin'].includes(currentUser.role)){ renderKategoriFilterKasir(); renderKasirMenu(); renderKelolaMenu(); } }
-            if(col === 'stocks') { stocksDB = dataToUse; if(currentUser) { renderKelolaStok(); if(!document.getElementById('view-mutasistok').classList.contains('hidden')) loadMutasiDataUI(); if(currentUser.role === 'admin' && !document.getElementById('view-dashboard').classList.contains('hidden')) renderManagerDashboard(); } }
+            if(col === 'accounts') { accountsDB = dataToUse; initialLoad.accounts = true; checkReady(); }
+            if(col === 'menus') { menusDB = dataToUse; initialLoad.menus = true; checkReady(); if(currentUser && ['kasir','admin'].includes(currentUser.role)){ renderKategoriFilterKasir(); renderKasirMenu(); renderKelolaMenu(); } }
+            if(col === 'stocks') { stocksDB = dataToUse; initialLoad.stocks = true; checkReady(); if(currentUser) { renderKelolaStok(); if(!document.getElementById('view-mutasistok').classList.contains('hidden')) loadMutasiDataUI(); if(currentUser.role === 'admin' && !document.getElementById('view-dashboard').classList.contains('hidden')) renderManagerDashboard(); } }
             if(col === 'transactions') { transactionsDB = dataToUse; if(currentUser && ['kasir','admin'].includes(currentUser.role)) { if(!document.getElementById('view-laporan').classList.contains('hidden')) renderLaporanUI(); } }
             if(col === 'expenses') { expensesDB = dataToUse; if(currentUser && ['kasir','admin'].includes(currentUser.role)) { if(!document.getElementById('view-pengeluaran').classList.contains('hidden')) renderPengeluaranUI(); } }
             if(col === 'close_registers') { closeRegistersDB = dataToUse; if(currentUser && currentUser.role === 'admin' && !document.getElementById('view-tutupbuku').classList.contains('hidden')) renderManagerTutupBuku(); }
@@ -2233,6 +2241,100 @@ window.switchNotifTab = (tabName) => {
     const activeBtn = document.getElementById(`btnNotif-${tabName}`);
     activeBtn.classList.remove('text-slate-400');
     activeBtn.classList.add('bg-white', 'text-blue-600', 'shadow-sm', 'border', 'border-slate-200');
+};
+
+window.exportExcelMutasiStok = async () => {
+    if (typeof ExcelJS === 'undefined') return showToast("Alat pembuat Excel belum siap.", "error");
+
+    const tgl = document.getElementById('filterTglMutasiManager').value;
+    const pic = document.getElementById('filterPicMutasiManager').value;
+    
+    let data = mutasiDB.filter(m => m.tanggal === tgl);
+    if (pic !== 'ALL') data = data.filter(m => m.role === pic);
+    data.sort((a, b) => a.namaBarang.localeCompare(b.namaBarang));
+
+    if(data.length === 0) return showToast("Tidak ada data mutasi untuk dicetak.", "error");
+
+    showLoading("Mencetak Excel Mutasi...");
+    
+    try {
+        const wb = new ExcelJS.Workbook();
+        const ws = wb.addWorksheet('Mutasi Stok');
+        
+        ws.columns = [
+            { key: 'no', width: 5 }, { key: 'barang', width: 25 }, { key: 'divisi', width: 15 },
+            { key: 'awal', width: 12 }, { key: 'masuk', width: 12 }, { key: 'kasir', width: 12 },
+            { key: 'manual', width: 12 }, { key: 'rusak', width: 12 }, { key: 'sistem', width: 15 },
+            { key: 'fisik', width: 15 }, { key: 'selisih', width: 15 }
+        ];
+
+        ws.mergeCells('A1:K1');
+        const titleRow = ws.getCell('A1');
+        titleRow.value = 'LAPORAN MUTASI STOK - PAWON NUSANTARA';
+        titleRow.font = { size: 14, bold: true };
+        titleRow.alignment = { horizontal: 'center', vertical: 'middle' };
+        titleRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFD700' } };
+
+        ws.mergeCells('A2:K2');
+        ws.getCell('A2').value = `Tanggal: ${tgl.split('-').reverse().join('/')} | Divisi: ${pic === 'ALL' ? 'Semua Divisi' : pic.toUpperCase()}`;
+        ws.getCell('A2').font = { bold: true };
+        ws.getCell('A2').alignment = { horizontal: 'center' };
+
+        // Header Grup
+        ws.mergeCells('A4:C4'); ws.getCell('A4').value = 'INFORMASI BARANG';
+        ws.mergeCells('D4:E4'); ws.getCell('D4').value = 'AWAL & MASUK';
+        ws.mergeCells('F4:H4'); ws.getCell('F4').value = 'BARANG KELUAR (-)';
+        ws.mergeCells('I4:K4'); ws.getCell('I4').value = 'REKONSILIASI AKHIR';
+        
+        const groupRow = ws.getRow(4);
+        groupRow.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+        groupRow.alignment = { horizontal: 'center', vertical: 'middle' };
+        for(let i=1; i<=11; i++) ws.getCell(4, i).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF333333' } };
+
+        // Header Detail
+        const headers = ['No', 'Nama Barang', 'PIC', 'Stok Awal', 'Masuk', 'Kasir POS', 'Manual', 'Rusak', 'Sistem', 'Fisik Real', 'Selisih'];
+        ws.addRow(headers);
+        const headerRow = ws.getRow(5);
+        headerRow.font = { bold: true };
+        headerRow.alignment = { horizontal: 'center', vertical: 'middle' };
+        for(let i=1; i<=11; i++) ws.getCell(5, i).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFEEEEEE' } };
+
+        // Isi Data
+        data.forEach((item, index) => {
+            const row = ws.addRow([
+                index + 1, item.namaBarang, item.role, item.sisaKemarin, item.masuk,
+                item.potongKasir, item.manual, item.rusak, item.seharusnya, item.fisik, item.selisih
+            ]);
+            
+            row.alignment = { horizontal: 'center' };
+            row.getCell(2).alignment = { horizontal: 'left' }; // Nama barang rata kiri
+            
+            // Format warna untuk selisih
+            const sel = row.getCell(11);
+            sel.font = { bold: true };
+            if (item.selisih < 0) sel.font.color = { argb: 'FFFF0000' };
+            else if (item.selisih > 0) sel.font.color = { argb: 'FF0000FF' };
+            else sel.font.color = { argb: 'FF008000' };
+        });
+
+        ws.views = [{ state: 'frozen', ySplit: 5 }];
+
+        const buffer = await wb.xlsx.writeBuffer();
+        const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `Mutasi_Stok_${tgl}.xlsx`;
+        a.click();
+        window.URL.revokeObjectURL(url);
+        
+        hideLoading();
+        showToast("Excel Mutasi diunduh!", "success");
+    } catch (e) {
+        console.error(e);
+        hideLoading();
+        showToast("Gagal membuat Excel", "error");
+    }
 };
 
 // INDIKATOR OFFLINE / ONLINE KASIR
