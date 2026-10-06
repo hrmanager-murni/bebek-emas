@@ -266,31 +266,37 @@ async function initApp() {
 }
 
 function setupRealtimeSync() {
-    // Siapkan batas 30 hari (untuk data ringan) dan batas 3 hari (untuk data berat)
-    const d30 = new Date(); d30.setDate(d30.getDate() - 30); 
-    const thirtyDaysAgo = d30.toISOString().split('T')[0];
-    
-    const d3 = new Date(); d3.setDate(d3.getDate() - 3);
-    const threeDaysAgo = d3.toISOString().split('T')[0];
-    
     let initialLoad = { accounts: false, menus: false, stocks: false };
     const checkReady = () => {
         if (initialLoad.accounts && initialLoad.menus && initialLoad.stocks && !isCloudReady) {
             isCloudReady = true;
             hideLoading();
         }
+        
+        // Self-Healing: Paksa panggil ulang layar jika data telat masuk tapi user sudah terlanjur login
+        if (isCloudReady && currentUser) {
+            if (currentUser.role === 'admin' && document.getElementById('view-dashboard').classList.contains('hidden')) {
+                window.switchTab('dashboard');
+            } else if (currentUser.role === 'kasir' && document.getElementById('view-kasir').classList.contains('hidden')) {
+                window.switchTab('kasir');
+            } else if (!['admin', 'kasir'].includes(currentUser.role) && document.getElementById('view-kelolastok').classList.contains('hidden')) {
+                // Pulihkan layar Pantau Stok jika profil yang login adalah Koki, Barista, Waiter, dll
+                window.switchTab('kelolastok');
+            }
+        }
     };
     
     const handleSync = (col) => {
         let dbRef = getColRef(col);
+        const todayStr = getTodayYMD();
         
-        // Pisahkan data berat agar ditarik hanya 3 hari ke belakang untuk menghemat kuota
-        if (['transactions', 'stock_mutations'].includes(col)) {
-            dbRef = query(getColRef(col), where('tanggal', '>=', threeDaysAgo));
-        } 
-        // Data ringan tetap ditarik 30 hari untuk kebutuhan Grafik Dashboard Manager
-        else if (['expenses', 'close_registers'].includes(col)) {
-            dbRef = query(getColRef(col), where('tanggal', '>=', thirtyDaysAgo));
+        // HANYA tarik data hari ini untuk Kasir saat login agar ringan
+        if (['transactions', 'stock_mutations', 'expenses'].includes(col)) {
+            dbRef = query(getColRef(col), where('tanggal', '==', todayStr));
+        } else if (['close_registers'].includes(col)) {
+            // Tutup buku butuh H-1 untuk cek angsulan
+            const d = new Date(); d.setDate(d.getDate() - 1);
+            dbRef = query(getColRef(col), where('tanggal', '>=', d.toISOString().split('T')[0]));
         }
 
         onSnapshot(dbRef, snap => {
@@ -348,14 +354,18 @@ window.loginManager = async () => {
 };
 
 function proceedLogin(accountData) {
-    currentUser = accountData; 
-    document.getElementById('labelUserRole').innerText = currentUser.nama + " (" + currentUser.role + ")"; 
-    document.getElementById('viewLanding').classList.add('hidden');
-    
-    const allTabs = ['dashboard', 'rekapmenu', 'kasir', 'notatersimpan', 'laporan', 'pengeluaran', 'tutupbuku', 'kelolamenu', 'kelolastok', 'mutasistok', 'laporanstok', 'tongsampah'];
-    allTabs.forEach(t => document.getElementById(`tab-${t}`).classList.add('hidden'));
+    try {
+        currentUser = accountData; 
+        document.getElementById('labelUserRole').innerText = currentUser.nama + " (" + currentUser.role + ")"; 
+        document.getElementById('viewLanding').classList.add('hidden');
+        
+        const allTabs = ['dashboard', 'rekapmenu', 'kasir', 'notatersimpan', 'laporan', 'pengeluaran', 'tutupbuku', 'kelolamenu', 'kelolastok', 'mutasistok', 'laporanstok', 'tongsampah'];
+        allTabs.forEach(t => {
+            const el = document.getElementById(`tab-${t}`);
+            if (el) el.classList.add('hidden');
+        });
 
-    if (currentUser.role === 'admin') {
+        if (currentUser.role === 'admin') {
         ['dashboard', 'rekapmenu', 'tutupbuku', 'kelolastok', 'mutasistok', 'laporanstok'].forEach(t => document.getElementById(`tab-${t}`).classList.remove('hidden'));
         window.switchTab('dashboard');
         document.getElementById('dashStartDate').value = getTodayYMD(); 
@@ -367,37 +377,48 @@ function proceedLogin(accountData) {
         document.getElementById('lsStartDate').value = dStart.toISOString().split('T')[0]; 
         document.getElementById('lsEndDate').value = getTodayYMD();
         
-        if(!document.getElementById('btnArsipKuno')) { 
-            const btn = document.createElement('button'); 
-            btn.id = 'btnArsipKuno'; 
-            btn.innerHTML = '<i class="fas fa-cloud-download-alt text-lg"></i><span class="ml-2">Tarik Arsip Lama</span>'; 
-            btn.className = 'fixed bottom-6 right-6 z-[90] bg-slate-900 text-amber-400 px-5 py-3.5 rounded-2xl shadow-[0_10px_25px_-5px_rgba(0,0,0,0.5)] font-black text-[10px] uppercase tracking-widest hover:bg-slate-800 transition transform hover:-translate-y-1 border border-slate-700 flex items-center justify-center'; 
-            btn.onclick = () => document.getElementById('modalArsip').classList.remove('hidden'); 
-            document.body.appendChild(btn); 
-        }
     } else {
-        const btn = document.getElementById('btnArsipKuno'); 
-        if(btn) btn.remove();
         
         if (currentUser.role === 'kasir') {
-            ['kasir', 'notatersimpan', 'laporan', 'pengeluaran', 'tutupbuku', 'kelolamenu', 'tongsampah'].forEach(t => document.getElementById(`tab-${t}`).classList.remove('hidden'));
+            ['kasir', 'notatersimpan', 'laporan', 'pengeluaran', 'tutupbuku', 'kelolamenu', 'tongsampah'].forEach(t => {
+                const el = document.getElementById(`tab-${t}`);
+                if (el) el.classList.remove('hidden');
+            });
             window.switchTab('kasir'); 
             document.getElementById('filterTglLaporan').value = getTodayYMD(); 
             let dateInput = document.getElementById('tbInputTanggal'); 
             if(dateInput) dateInput.value = getTodayYMD();
-            renderKategoriFilterKasir(); 
-            renderKasirMenu(); 
-            renderKelolaMenu(); 
-            document.getElementById('badgeSavedBills').innerText = savedBillsDB.length; 
-            document.getElementById('badgeSavedBills').classList.toggle('hidden', savedBillsDB.length === 0);
+            
+            // Beri jeda 50ms agar browser bisa merender layar putihnya dulu sebelum diisi data berat
+            setTimeout(() => {
+                renderKategoriFilterKasir(); 
+                renderKasirMenu(); 
+                renderKelolaMenu(); 
+                const badge = document.getElementById('badgeSavedBills');
+                if (badge) {
+                    badge.innerText = savedBillsDB ? savedBillsDB.length : 0; 
+                    badge.classList.toggle('hidden', !savedBillsDB || savedBillsDB.length === 0);
+                }
+            }, 50);
         } else {
-            ['kelolastok', 'mutasistok'].forEach(t => document.getElementById(`tab-${t}`).classList.remove('hidden'));
+            ['kelolastok', 'mutasistok'].forEach(t => {
+                const el = document.getElementById(`tab-${t}`);
+                if (el) el.classList.remove('hidden');
+            });
             document.getElementById('filterTglMutasi').value = getTodayYMD(); 
             window.switchTab('kelolastok'); 
-            renderKelolaStok();
+            
+            // Beri jeda 50ms untuk staf lain agar layar render dulu
+            setTimeout(() => {
+                renderKelolaStok();
+            }, 50);
         }
     }
     showToast(`Akses diberikan. Selamat bekerja, ${currentUser.nama}!`);
+    } catch (error) {
+        console.error("Error UI:", error);
+        showToast("Memulihkan tampilan...", "info");
+    }
 }
 
 window.logout = () => { 
@@ -1744,7 +1765,37 @@ window.renderLaporanStokUI = () => {
 };
 
 // DASHBOARD MANAGER
-window.renderManagerDashboard = () => {
+
+// Fungsi Global Penarik Data Manager On-Demand
+window.fetchManagerDataOnDemand = async (startD, endD, forceSync = false) => {
+    showLoading("Mencari Data di Cloud...");
+    try {
+        const fetchCol = async (col) => { 
+            const q = query(getColRef(col), where('tanggal', '>=', startD), where('tanggal', '<=', endD)); 
+            const snap = await getDocs(q); 
+            return snap.docs.map(docItem => ({id: docItem.id, ...docItem.data()})); 
+        };
+        
+        const [trx, exp, cr, mut] = await Promise.all([fetchCol('transactions'), fetchCol('expenses'), fetchCol('close_registers'), fetchCol('stock_mutations')]);
+        
+        // Gabungkan dengan data yang mungkin sudah ada agar tidak duplikat
+        transactionsDB = Array.from(new Map([...trx, ...transactionsDB].map(item => [item.id, item])).values());
+        expensesDB = Array.from(new Map([...exp, ...expensesDB].map(item => [item.id, item])).values());
+        closeRegistersDB = Array.from(new Map([...cr, ...closeRegistersDB].map(item => [item.id, item])).values());
+        mutasiDB = Array.from(new Map([...mut, ...mutasiDB].map(item => [item.id, item])).values());
+
+        hideLoading();
+        if(forceSync) showToast("Data berhasil ditarik!", "success");
+        return true;
+    } catch (e) { 
+        console.error(e); 
+        hideLoading(); 
+        showToast("Gagal menarik data cloud", "error"); 
+        return false;
+    }
+};
+
+window.renderManagerDashboard = async (isManualClick = false) => {
     if(!currentUser || currentUser.role !== 'admin') return;
     
     let sd = document.getElementById('dashStartDate').value; 
@@ -1762,32 +1813,34 @@ window.renderManagerDashboard = () => {
     const dates = []; let currDate = new Date(sd); const endDate = new Date(ed); 
     let diffDays = (endDate - currDate) / (1000 * 60 * 60 * 24); 
     if(diffDays > 31 || diffDays < 0) { showToast("Range maksimal 31 hari!", "error"); return; } 
+    
+    // TARIK DATA DARI CLOUD SEBELUM RENDER
+    await window.fetchManagerDataOnDemand(sd, ed, isManualClick);
+
     while(currDate <= endDate) { dates.push(currDate.toISOString().split('T')[0]); currDate.setDate(currDate.getDate() + 1); }
     
-    const labels = []; const incomeData = []; const expenseData = []; let itemSales = {}; 
-    const selectEl = document.getElementById('dashTopMenuKategori'); 
-    let currentKat = selectEl ? selectEl.value : 'ALL';
+    const labels = []; const incomeData = []; const expenseData = [];
+    
+    // Variabel untuk analisis baru
+    let totalAllNota = 0;
+    let countCash = 0, countTf = 0, countMix = 0;
 
     dates.forEach(dStr => {
         const parts = dStr.split('-'); labels.push(parts[2] + '/' + parts[1]); 
         let dayIncome = 0; let dayExpense = 0;
-        transactionsDB.filter(t => t.tanggal === dStr && t.status === 'Aktif').forEach(t => { 
+        
+        const trxHariIni = transactionsDB.filter(t => t.tanggal === dStr && t.status === 'Aktif');
+        totalAllNota += trxHariIni.length;
+
+        trxHariIni.forEach(t => { 
             dayIncome += t.total; 
-            t.cart.forEach(c => { 
-                const menuRef = menusDB.find(m => m.nama === c.nama); 
-                const kat = menuRef ? menuRef.kategori.toUpperCase() : 'UMUM'; 
-                if(currentKat === 'ALL' || kat === currentKat) { itemSales[c.nama] = (itemSales[c.nama] || 0) + c.qty; } 
-            }); 
+            if(t.pembayaran === 'CASH') countCash++;
+            else if(t.pembayaran === 'TRANSFER') countTf++;
+            else if(t.pembayaran === 'MIX') countMix++;
         });
         expensesDB.filter(e => e.tanggal === dStr).forEach(e => dayExpense += e.nominal); 
         incomeData.push(dayIncome); expenseData.push(dayExpense);
     });
-
-    if (selectEl) { 
-        let allKats = ['ALL', ...new Set(menusDB.map(m => m.kategori.toUpperCase()))]; 
-        selectEl.innerHTML = ''; 
-        allKats.forEach(k => { selectEl.innerHTML += `<option value="${k}" ${currentKat === k ? 'selected' : ''}>${k === 'ALL' ? 'SEMUA KATEGORI' : k}</option>`; }); 
-    }
     
     let totalRev = incomeData.reduce((a, b) => a + b, 0); 
     let avgRev = dates.length > 0 ? totalRev / dates.length : 0; 
@@ -1808,19 +1861,34 @@ window.renderManagerDashboard = () => {
         options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'top', labels: { font: { family: 'Inter', weight: 'bold' } } } }, scales: { y: { beginAtZero: true, grid: { color: '#f1f5f9' }, ticks: { callback: function(val) { if(val >= 1000000) return 'Rp ' + (val/1000000).toFixed(1).replace('.0','') + ' Jt'; if(val >= 1000) return 'Rp ' + (val/1000) + ' Rb'; return 'Rp ' + val; } } }, x: { grid: { display: false } } } } 
     });
 
-    const topMenuCont = document.getElementById('topMenuContainer'); topMenuCont.innerHTML = ''; 
-    const sortedMenu = Object.entries(itemSales).sort((a,b) => b[1] - a[1]);
-    if(sortedMenu.length === 0) { 
-        topMenuCont.innerHTML = `<div class="p-4 text-center text-slate-400 font-bold text-xs bg-slate-50 rounded-2xl border border-dashed border-slate-200">Belum ada penjualan di periode ini.</div>`; 
-    } else { 
-        sortedMenu.slice(0, 5).forEach((item, index) => { 
-            let badge = "bg-slate-100 text-slate-500"; 
-            if(index === 0) badge = "bg-amber-100 text-amber-600 shadow-sm border border-amber-200"; 
-            else if(index === 1) badge = "bg-slate-200 text-slate-700 shadow-sm border border-slate-300"; 
-            else if(index === 2) badge = "bg-orange-100 text-orange-700 shadow-sm border border-orange-200"; 
-            topMenuCont.innerHTML += `<div class="flex items-center justify-between p-3 border-b border-slate-50 hover:bg-slate-50 rounded-xl transition"><div class="flex items-center space-x-3"><div class="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-black ${badge}">${index+1}</div><span class="font-bold text-xs text-slate-700">${item[0]}</span></div><span class="font-black text-emerald-600 text-xs">${item[1]} <span class="text-[9px] text-slate-400">Porsi</span></span></div>`; 
-        }); 
+    // Render Analisis Performa
+    let pctCash = 0, pctTf = 0, pctMix = 0, avgTicket = 0;
+    if(totalAllNota > 0) {
+        pctCash = Math.round((countCash / totalAllNota) * 100);
+        pctTf = Math.round((countTf / totalAllNota) * 100);
+        pctMix = Math.round((countMix / totalAllNota) * 100);
+        avgTicket = totalRev / totalAllNota;
     }
+
+    let elAvgTicket = document.getElementById('dashAvgTicket');
+    if(elAvgTicket) elAvgTicket.innerText = formatIDR(avgTicket);
+    let elDashTotalNota = document.getElementById('dashTotalNota');
+    if(elDashTotalNota) elDashTotalNota.innerText = `${totalAllNota} Nota`;
+
+    const animateBar = (idBar, idText, percent) => {
+        let bar = document.getElementById(idBar);
+        let txt = document.getElementById(idText);
+        if(bar && txt) {
+            bar.style.width = percent + '%';
+            txt.innerText = percent + '%';
+        }
+    };
+    
+    setTimeout(() => {
+        animateBar('barCash', 'pctCash', pctCash);
+        animateBar('barTf', 'pctTf', pctTf);
+        animateBar('barMix', 'pctMix', pctMix);
+    }, 100);
 
     const approvalsCont = document.getElementById('notif-approval');
     const stockCont = document.getElementById('notif-stock');
@@ -2068,47 +2136,6 @@ window.hapusPermanenTrash = (id) => {
     });
 };
 // ------------------------------
-
-window.prosesTarikArsip = async () => {
-    const startDate = document.getElementById('arsipStart').value;
-    const endDate = document.getElementById('arsipEnd').value;
-    
-    if(!startDate || !endDate) return showToast("Pilih rentang tanggal!", "error");
-    if(startDate > endDate) return showToast("Tanggal tidak valid!", "error");
-    
-    // Tambahan perlindungan: Tolak jika rentang waktu melebihi 30 hari
-    const diffDays = (new Date(endDate) - new Date(startDate)) / (1000 * 60 * 60 * 24);
-    if(diffDays > 30) return showToast("Maksimal tarik data 30 hari!", "error");
-    
-    document.getElementById('modalArsip').classList.add('hidden');
-    showLoading("Mengunduh Arsip...\n(Ini memakan waktu)");
-    try {
-        const fetchArchive = async (col) => { 
-            const q = query(getColRef(col), where('tanggal', '>=', startDate), where('tanggal', '<=', endDate)); 
-            const snap = await getDocs(q); 
-            return snap.docs.map(docItem => ({id: docItem.id, ...docItem.data()})); 
-        };
-        
-        const [trx, exp, cr, mut] = await Promise.all([fetchArchive('transactions'), fetchArchive('expenses'), fetchArchive('close_registers'), fetchArchive('stock_mutations')]);
-        
-        transactionsDB = Array.from(new Map([...trx, ...transactionsDB].map(item => [item.id, item])).values());
-        expensesDB = Array.from(new Map([...exp, ...expensesDB].map(item => [item.id, item])).values());
-        closeRegistersDB = Array.from(new Map([...cr, ...closeRegistersDB].map(item => [item.id, item])).values());
-        mutasiDB = Array.from(new Map([...mut, ...mutasiDB].map(item => [item.id, item])).values());
-
-        if(!document.getElementById('view-dashboard').classList.contains('hidden')) renderManagerDashboard();
-        if(!document.getElementById('view-laporan').classList.contains('hidden')) renderLaporanUI();
-        if(!document.getElementById('view-rekapmenu').classList.contains('hidden')) renderRekapMenuTab();
-        if(!document.getElementById('view-laporanstok').classList.contains('hidden')) renderLaporanStokUI();
-        if(!document.getElementById('view-tutupbuku').classList.contains('hidden')) renderManagerTutupBuku();
-        if(!document.getElementById('view-mutasistok').classList.contains('hidden')) renderManagerMutasi();
-        
-        showToast("Arsip Berhasil Ditarik!", "success");
-    } catch (e) { 
-        console.error(e); showToast("Gagal menarik arsip.", "error"); 
-    }
-    hideLoading();
-};
 
 window.prosesExportExcelTb = async () => {
     const startDate = document.getElementById('excelTbStart').value;
