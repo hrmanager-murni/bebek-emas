@@ -1644,8 +1644,9 @@ window.ajukanBukaKunci = async () => {
     }
 };
 
-window.renderManagerMutasi = () => {
+window.renderManagerMutasi = async () => {
     const tgl = document.getElementById('filterTglMutasiManager').value; 
+    if(tgl) await window.fetchManagerDataOnDemand(tgl, tgl);
     const pic = document.getElementById('filterPicMutasiManager').value; 
     const tbl = document.getElementById('tblMutasiManager'); 
     tbl.innerHTML = '';
@@ -1730,11 +1731,13 @@ window.simpanEditMutasiManager = async () => {
     hideLoading();
 };
 
-window.renderLaporanStokUI = () => {
+window.renderLaporanStokUI = async (isManualClick = false) => {
     const sd = document.getElementById('lsStartDate').value; 
     const ed = document.getElementById('lsEndDate').value; 
     const pic = document.getElementById('filterPicLaporanStok').value; 
     if(!sd || !ed) return;
+    
+    await window.fetchManagerDataOnDemand(sd, ed, isManualClick);
     
     const start = new Date(sd).getTime(); 
     const end = new Date(ed).getTime() + 86400000; 
@@ -1958,7 +1961,7 @@ window.rejectRequest = async (reqId) => {
     } catch(e) { hideLoading(); showToast("Gagal menolak", "error"); }
 };
 
-window.renderRekapMenuTab = () => {
+window.renderRekapMenuTab = async (isManualClick = false) => {
     const sd = document.getElementById('rmStartDate').value; 
     const ed = document.getElementById('rmEndDate').value; 
     const filterDropdown = document.getElementById('rmKategoriFilter');
@@ -1970,6 +1973,8 @@ window.renderRekapMenuTab = () => {
         document.getElementById('rmEndDate').value = dEnd.toISOString().split('T')[0]; 
         setTimeout(window.renderRekapMenuTab, 50); return; 
     }
+    
+    await window.fetchManagerDataOnDemand(sd, ed, isManualClick);
     
     let itemSales = {}; let itemRevenue = {}; 
     const start = new Date(sd).getTime(); const end = new Date(ed).getTime() + 86400000;
@@ -2273,23 +2278,30 @@ window.switchNotifTab = (tabName) => {
 window.exportExcelMutasiStok = async () => {
     if (typeof ExcelJS === 'undefined') return showToast("Alat pembuat Excel belum siap.", "error");
 
-    const tgl = document.getElementById('filterTglMutasiManager').value;
-    const pic = document.getElementById('filterPicMutasiManager').value;
+    const sd = document.getElementById('lsStartDate').value; 
+    const ed = document.getElementById('lsEndDate').value; 
+    const picFilter = document.getElementById('filterPicLaporanStok').value;
     
-    let data = mutasiDB.filter(m => m.tanggal === tgl);
-    if (pic !== 'ALL') data = data.filter(m => m.role === pic);
-    data.sort((a, b) => a.namaBarang.localeCompare(b.namaBarang));
-
-    if(data.length === 0) return showToast("Tidak ada data mutasi untuk dicetak.", "error");
+    if(!sd || !ed) return showToast("Pilih rentang tanggal!", "error");
 
     showLoading("Mencetak Excel Mutasi...");
     
     try {
+        await window.fetchManagerDataOnDemand(sd, ed);
+
+        let rawData = mutasiDB.filter(m => m.tanggal >= sd && m.tanggal <= ed);
+        if (picFilter !== 'ALL') rawData = rawData.filter(m => m.role === picFilter);
+        
+        if(rawData.length === 0) {
+            hideLoading();
+            return showToast("Tidak ada data mutasi untuk dicetak.", "error");
+        }
+
         const wb = new ExcelJS.Workbook();
-        const ws = wb.addWorksheet('Mutasi Stok');
+        const ws = wb.addWorksheet('Laporan Mutasi Stok');
         
         ws.columns = [
-            { key: 'no', width: 5 }, { key: 'barang', width: 25 }, { key: 'divisi', width: 15 },
+            { key: 'no', width: 5 }, { key: 'barang', width: 25 }, { key: 'tgl', width: 12 },
             { key: 'awal', width: 12 }, { key: 'masuk', width: 12 }, { key: 'kasir', width: 12 },
             { key: 'manual', width: 12 }, { key: 'rusak', width: 12 }, { key: 'sistem', width: 15 },
             { key: 'fisik', width: 15 }, { key: 'selisih', width: 15 }
@@ -2303,55 +2315,63 @@ window.exportExcelMutasiStok = async () => {
         titleRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFD700' } };
 
         ws.mergeCells('A2:K2');
-        ws.getCell('A2').value = `Tanggal: ${tgl.split('-').reverse().join('/')} | Divisi: ${pic === 'ALL' ? 'Semua Divisi' : pic.toUpperCase()}`;
+        ws.getCell('A2').value = `Periode: ${sd.split('-').reverse().join('/')} s/d ${ed.split('-').reverse().join('/')}`;
         ws.getCell('A2').font = { bold: true };
         ws.getCell('A2').alignment = { horizontal: 'center' };
 
-        // Header Grup
-        ws.mergeCells('A4:C4'); ws.getCell('A4').value = 'INFORMASI BARANG';
-        ws.mergeCells('D4:E4'); ws.getCell('D4').value = 'AWAL & MASUK';
-        ws.mergeCells('F4:H4'); ws.getCell('F4').value = 'BARANG KELUAR (-)';
-        ws.mergeCells('I4:K4'); ws.getCell('I4').value = 'REKONSILIASI AKHIR';
+        let currentRow = 4;
+        const divisions = picFilter === 'ALL' ? [...new Set(rawData.map(m => m.role))] : [picFilter];
         
-        const groupRow = ws.getRow(4);
-        groupRow.font = { bold: true, color: { argb: 'FFFFFFFF' } };
-        groupRow.alignment = { horizontal: 'center', vertical: 'middle' };
-        for(let i=1; i<=11; i++) ws.getCell(4, i).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF333333' } };
+        divisions.sort().forEach(div => {
+            let divData = rawData.filter(m => m.role === div);
+            divData.sort((a, b) => a.namaBarang.localeCompare(b.namaBarang) || a.tanggal.localeCompare(b.tanggal));
 
-        // Header Detail
-        const headers = ['No', 'Nama Barang', 'PIC', 'Stok Awal', 'Masuk', 'Kasir POS', 'Manual', 'Rusak', 'Sistem', 'Fisik Real', 'Selisih'];
-        ws.addRow(headers);
-        const headerRow = ws.getRow(5);
-        headerRow.font = { bold: true };
-        headerRow.alignment = { horizontal: 'center', vertical: 'middle' };
-        for(let i=1; i<=11; i++) ws.getCell(5, i).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFEEEEEE' } };
+            if(divData.length > 0) {
+                // Judul Per Divisi
+                ws.mergeCells(`A${currentRow}:K${currentRow}`);
+                const divTitle = ws.getCell(`A${currentRow}`);
+                divTitle.value = `DIVISI: ${div.toUpperCase()}`;
+                divTitle.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+                divTitle.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1E293B' } };
+                currentRow++;
 
-        // Isi Data
-        data.forEach((item, index) => {
-            const row = ws.addRow([
-                index + 1, item.namaBarang, item.role, item.sisaKemarin, item.masuk,
-                item.potongKasir, item.manual, item.rusak, item.seharusnya, item.fisik, item.selisih
-            ]);
-            
-            row.alignment = { horizontal: 'center' };
-            row.getCell(2).alignment = { horizontal: 'left' }; // Nama barang rata kiri
-            
-            // Format warna untuk selisih
-            const sel = row.getCell(11);
-            sel.font = { bold: true };
-            if (item.selisih < 0) sel.font.color = { argb: 'FFFF0000' };
-            else if (item.selisih > 0) sel.font.color = { argb: 'FF0000FF' };
-            else sel.font.color = { argb: 'FF008000' };
+                // Header Tabel
+                const headers = ['No', 'Nama Barang', 'Tanggal', 'Stok Awal', 'Masuk', 'Kasir POS', 'Manual', 'Rusak', 'Sistem', 'Fisik Real', 'Selisih'];
+                ws.addRow(headers);
+                const headerRow = ws.getRow(currentRow);
+                headerRow.font = { bold: true };
+                headerRow.alignment = { horizontal: 'center', vertical: 'middle' };
+                for(let i=1; i<=11; i++) ws.getCell(currentRow, i).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE2E8F0' } };
+                currentRow++;
+
+                // Isi Data Per Divisi
+                divData.forEach((item, index) => {
+                    const row = ws.addRow([
+                        index + 1, item.namaBarang, item.tanggal.split('-').reverse().join('/'), 
+                        item.sisaKemarin, item.masuk, item.potongKasir, item.manual, 
+                        item.rusak, item.seharusnya, item.fisik, item.selisih
+                    ]);
+                    
+                    row.alignment = { horizontal: 'center' };
+                    row.getCell(2).alignment = { horizontal: 'left' }; 
+                    
+                    const sel = row.getCell(11);
+                    sel.font = { bold: true };
+                    if (item.selisih < 0) sel.font.color = { argb: 'FFFF0000' };
+                    else if (item.selisih > 0) sel.font.color = { argb: 'FF0000FF' };
+                    else sel.font.color = { argb: 'FF008000' };
+                    currentRow++;
+                });
+                currentRow++; // Spasi pemisah antar tabel divisi
+            }
         });
-
-        ws.views = [{ state: 'frozen', ySplit: 5 }];
 
         const buffer = await wb.xlsx.writeBuffer();
         const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
         const url = window.URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `Mutasi_Stok_${tgl}.xlsx`;
+        a.download = `Mutasi_Stok_${sd}_sd_${ed}.xlsx`;
         a.click();
         window.URL.revokeObjectURL(url);
         
