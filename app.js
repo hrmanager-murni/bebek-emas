@@ -367,15 +367,21 @@ function proceedLogin(accountData) {
 
         if (currentUser.role === 'admin') {
         ['dashboard', 'rekapmenu', 'tutupbuku', 'kelolastok', 'mutasistok', 'laporanstok'].forEach(t => document.getElementById(`tab-${t}`).classList.remove('hidden'));
-        window.switchTab('dashboard');
-        document.getElementById('dashStartDate').value = getTodayYMD(); 
-        document.getElementById('dashEndDate').value = getTodayYMD();
-        document.getElementById('rmStartDate').value = getTodayYMD(); 
-        document.getElementById('rmEndDate').value = getTodayYMD();
         
-        const dStart = new Date(); dStart.setDate(dStart.getDate() - 6); 
-        document.getElementById('lsStartDate').value = dStart.toISOString().split('T')[0]; 
-        document.getElementById('lsEndDate').value = getTodayYMD();
+        // Setup default H-7 untuk dashboard Manager
+        const dEnd = new Date(); 
+        const dStart = new Date(); dStart.setDate(dEnd.getDate() - 6); 
+        const strStart = dStart.toISOString().split('T')[0];
+        const strEnd = dEnd.toISOString().split('T')[0];
+        
+        document.getElementById('dashStartDate').value = strStart; 
+        document.getElementById('dashEndDate').value = strEnd;
+        document.getElementById('rmStartDate').value = strStart; 
+        document.getElementById('rmEndDate').value = strEnd;
+        document.getElementById('lsStartDate').value = strStart; 
+        document.getElementById('lsEndDate').value = strEnd;
+        
+        window.switchTab('dashboard');
         
     } else {
         
@@ -522,7 +528,17 @@ window.renderSavedBillsUI = () => {
         let itemsPreview = sb.cart.map(c=>c.nama).slice(0,2).join(', '); 
         if(sb.cart.length > 2) itemsPreview += ` (+${sb.cart.length-2} item)`;
         
-        container.innerHTML += `<div class="bg-white p-5 rounded-3xl shadow-sm border border-slate-200 flex flex-col justify-between group hover:border-amber-400 transition"><div><div class="flex justify-between items-start mb-2"><span class="px-2.5 py-1 bg-amber-100 text-amber-700 text-[9px] font-black uppercase tracking-widest rounded-lg">${sb.waktu.substring(11,16)}</span><span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">${sb.tipeOrder}</span></div><h4 class="text-sm font-black text-slate-800 mb-1 leading-tight">${sb.namaTunda}</h4><p class="text-[10px] text-slate-500 font-medium">${itemsPreview}</p></div><div class="flex space-x-2 mt-4 pt-4 border-t border-slate-100"><button onclick="bukaSavedBill('${sb.id}')" class="flex-1 py-2.5 bg-slate-900 hover:bg-amber-50 text-white hover:text-slate-900 font-black text-xs uppercase tracking-widest rounded-xl transition shadow-sm">Buka Nota</button><button onclick="hapusSavedBill('${sb.id}')" class="w-10 h-10 bg-rose-50 text-rose-500 hover:bg-rose-500 hover:text-white rounded-xl transition flex items-center justify-center border border-rose-100"><i class="fas fa-trash-alt"></i></button></div></div>`;
+        // Hitung total nilai nota tunda
+        let totalNilai = 0;
+        sb.cart.forEach(c => {
+            let hrg = sb.tipeOrder === 'DineIn' ? c.hargaDineIn : c.hargaGojek;
+            totalNilai += (hrg * c.qty);
+        });
+        let diskonAmt = sb.discountInfo ? (sb.discountInfo.type === '%' ? totalNilai * (sb.discountInfo.value / 100) : sb.discountInfo.value) : 0;
+        let grandTotal = totalNilai - diskonAmt;
+        if(sb.tipeOrder === 'Gojek') { const g = getGojekFee(grandTotal); grandTotal = g.finalTotal; }
+        
+        container.innerHTML += `<div class="bg-white p-5 rounded-3xl shadow-sm border border-slate-200 flex flex-col justify-between group hover:border-amber-400 transition"><div><div class="flex justify-between items-start mb-2"><span class="px-2.5 py-1 bg-amber-100 text-amber-700 text-[9px] font-black uppercase tracking-widest rounded-lg">${sb.waktu.substring(11,16)}</span><span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">${sb.tipeOrder}</span></div><h4 class="text-sm font-black text-slate-800 mb-1 leading-tight">${sb.namaTunda}</h4><p class="text-[10px] text-slate-500 font-medium mb-2">${itemsPreview}</p><div class="inline-block bg-slate-50 px-2 py-1 rounded border border-slate-100"><span class="text-[9px] font-bold text-slate-400 uppercase tracking-widest block">Total Estimasi</span><span class="text-xs font-black text-slate-700">${formatIDR(grandTotal)}</span></div></div><div class="flex space-x-2 mt-4 pt-4 border-t border-slate-100"><button onclick="bukaSavedBill('${sb.id}')" class="flex-1 py-2.5 bg-slate-900 hover:bg-amber-50 text-white hover:text-slate-900 font-black text-xs uppercase tracking-widest rounded-xl transition shadow-sm">Buka Nota</button><button onclick="hapusSavedBill('${sb.id}')" class="w-10 h-10 bg-rose-50 text-rose-500 hover:bg-rose-500 hover:text-white rounded-xl transition flex items-center justify-center border border-rose-100"><i class="fas fa-trash-alt"></i></button></div></div>`;
     });
 };
 
@@ -1148,8 +1164,9 @@ window.renderManagerTutupBuku = () => {
     }
     
     data.forEach(d => { 
+        let seharusnya = Math.max(0, (d.setoranCashReal || 0) - (d.selisihSetoran || 0));
         let lockBadge = d.isUnlocked ? `<div class="mt-3 text-[10px] text-amber-600 font-bold bg-amber-50 p-1.5 rounded text-center border border-amber-200"><i class="fas fa-unlock"></i> Kasir Sedang Revisi</div>` : `<div class="mt-3 text-[10px] text-emerald-600 font-bold bg-emerald-50 p-1.5 rounded text-center border border-emerald-200"><i class="fas fa-lock"></i> Terkunci (Selesai)</div>`; 
-        container.innerHTML += `<div onclick="bukaDetailTbManager('${d.id}')" class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm cursor-pointer hover:border-amber-400 hover:shadow-md transition group mt-2"><div class="flex justify-between items-center border-b border-slate-100 pb-2 mb-2"><span class="font-black text-slate-800 text-lg group-hover:text-amber-600 transition"><i class="fas fa-calendar-check mr-1 text-slate-300"></i> ${d.tanggal.split('-').reverse().join('/')}</span><span class="text-[9px] bg-slate-100 text-slate-500 px-2 py-1 rounded-md font-bold uppercase">${d.kasir}</span></div><div class="flex justify-between items-center"><span class="text-xs text-slate-500 font-bold">Setoran Fisik:</span><span class="font-black text-amber-600">${formatIDR(d.setoranCashReal)}</span></div><div class="flex justify-between items-center mt-1"><span class="text-[10px] text-slate-500 font-bold">Status:</span><span class="font-black text-xs">${d.selisihSetoran === 0 ? '<span class="text-emerald-500">KLOP</span>' : (d.selisihSetoran > 0 ? `<span class="text-blue-500">+${formatIDR(d.selisihSetoran)}</span>` : `<span class="text-rose-500">-${formatIDR(Math.abs(d.selisihSetoran))}</span>`)}</span></div>${lockBadge}</div>`; 
+        container.innerHTML += `<div onclick="bukaDetailTbManager('${d.id}')" class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm cursor-pointer hover:border-amber-400 hover:shadow-md transition group mt-2"><div class="flex justify-between items-center border-b border-slate-100 pb-2 mb-2"><span class="font-black text-slate-800 text-lg group-hover:text-amber-600 transition"><i class="fas fa-calendar-check mr-1 text-slate-300"></i> ${d.tanggal.split('-').reverse().join('/')}</span><span class="text-[9px] bg-slate-100 text-slate-500 px-2 py-1 rounded-md font-bold uppercase">${d.kasir}</span></div><div class="flex justify-between items-center mb-1"><span class="text-[10px] text-slate-400 font-bold">Sistem Seharusnya:</span><span class="font-black text-xs text-slate-500">${formatIDR(seharusnya)}</span></div><div class="flex justify-between items-center"><span class="text-xs text-slate-500 font-bold">Setoran Fisik:</span><span class="font-black text-amber-600">${formatIDR(d.setoranCashReal)}</span></div><div class="flex justify-between items-center mt-1"><span class="text-[10px] text-slate-500 font-bold">Status:</span><span class="font-black text-xs">${d.selisihSetoran === 0 ? '<span class="text-emerald-500">KLOP</span>' : (d.selisihSetoran > 0 ? `<span class="text-blue-500">+${formatIDR(d.selisihSetoran)}</span>` : `<span class="text-rose-500">-${formatIDR(Math.abs(d.selisihSetoran))}</span>`)}</span></div>${lockBadge}</div>`; 
     });
 };
 
@@ -1644,9 +1661,12 @@ window.ajukanBukaKunci = async () => {
     }
 };
 
-window.renderManagerMutasi = async () => {
+window.renderManagerMutasi = async (skipFetch = false) => {
     const tgl = document.getElementById('filterTglMutasiManager').value; 
-    if(tgl) await window.fetchManagerDataOnDemand(tgl, tgl);
+    if(tgl && !skipFetch) {
+        const success = await window.fetchManagerDataOnDemand(tgl, tgl);
+        if(!success) return;
+    }
     const pic = document.getElementById('filterPicMutasiManager').value; 
     const tbl = document.getElementById('tblMutasiManager'); 
     tbl.innerHTML = '';
@@ -1731,13 +1751,16 @@ window.simpanEditMutasiManager = async () => {
     hideLoading();
 };
 
-window.renderLaporanStokUI = async (isManualClick = false) => {
+window.renderLaporanStokUI = async (isManualClick = false, skipFetch = false) => {
     const sd = document.getElementById('lsStartDate').value; 
     const ed = document.getElementById('lsEndDate').value; 
     const pic = document.getElementById('filterPicLaporanStok').value; 
     if(!sd || !ed) return;
     
-    await window.fetchManagerDataOnDemand(sd, ed, isManualClick);
+    if(!skipFetch) {
+        const success = await window.fetchManagerDataOnDemand(sd, ed, isManualClick);
+        if(!success) return;
+    }
     
     const start = new Date(sd).getTime(); 
     const end = new Date(ed).getTime() + 86400000; 
@@ -1770,8 +1793,29 @@ window.renderLaporanStokUI = async (isManualClick = false) => {
 // DASHBOARD MANAGER
 
 // Fungsi Global Penarik Data Manager On-Demand
-window.fetchManagerDataOnDemand = async (startD, endD, forceSync = false) => {
-    showLoading("Mencari Data di Cloud...");
+window.refreshApp = async () => {
+    document.getElementById('refreshOverlay').classList.remove('hidden');
+    try {
+        let sd = getTodayYMD(), ed = getTodayYMD();
+        if(currentUser && currentUser.role === 'admin') {
+            if(!document.getElementById('view-dashboard').classList.contains('hidden')) { sd = document.getElementById('dashStartDate').value || sd; ed = document.getElementById('dashEndDate').value || ed; }
+            else if(!document.getElementById('view-rekapmenu').classList.contains('hidden')) { sd = document.getElementById('rmStartDate').value || sd; ed = document.getElementById('rmEndDate').value || ed; }
+            else if(!document.getElementById('view-laporanstok').classList.contains('hidden')) { sd = document.getElementById('lsStartDate').value || sd; ed = document.getElementById('lsEndDate').value || ed; }
+            else if(!document.getElementById('view-mutasistok').classList.contains('hidden')) { sd = document.getElementById('filterTglMutasiManager').value || sd; ed = sd; }
+            else if(!document.getElementById('view-tutupbuku').classList.contains('hidden')) { sd = document.getElementById('filterTbManager').value + '-01' || sd; ed = document.getElementById('filterTbManager').value + '-31' || ed; }
+            await window.fetchManagerDataOnDemand(sd, ed, false, true);
+        }
+        setTimeout(() => {
+            document.getElementById('refreshOverlay').classList.add('hidden');
+            showToast("Data Tersinkronisasi!", "success");
+        }, 1500); 
+    } catch(e) { document.getElementById('refreshOverlay').classList.add('hidden'); showToast("Gagal menyegarkan data", "error"); }
+};
+
+window.fetchManagerDataOnDemand = async (startD, endD, forceSync = false, isSilent = false) => {
+    if(!isSilent) showLoading("Mencari Data di Cloud...");
+    const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('TIMEOUT')), 15000));
+    
     try {
         const fetchCol = async (col) => { 
             const q = query(getColRef(col), where('tanggal', '>=', startD), where('tanggal', '<=', endD)); 
@@ -1779,7 +1823,8 @@ window.fetchManagerDataOnDemand = async (startD, endD, forceSync = false) => {
             return snap.docs.map(docItem => ({id: docItem.id, ...docItem.data()})); 
         };
         
-        const [trx, exp, cr, mut] = await Promise.all([fetchCol('transactions'), fetchCol('expenses'), fetchCol('close_registers'), fetchCol('stock_mutations')]);
+        const fetchDataPromise = Promise.all([fetchCol('transactions'), fetchCol('expenses'), fetchCol('close_registers'), fetchCol('stock_mutations')]);
+        const [trx, exp, cr, mut] = await Promise.race([fetchDataPromise, timeoutPromise]);
         
         // Gabungkan dengan data yang mungkin sudah ada agar tidak duplikat
         transactionsDB = Array.from(new Map([...trx, ...transactionsDB].map(item => [item.id, item])).values());
@@ -1787,18 +1832,29 @@ window.fetchManagerDataOnDemand = async (startD, endD, forceSync = false) => {
         closeRegistersDB = Array.from(new Map([...cr, ...closeRegistersDB].map(item => [item.id, item])).values());
         mutasiDB = Array.from(new Map([...mut, ...mutasiDB].map(item => [item.id, item])).values());
 
-        hideLoading();
+        if(!isSilent) hideLoading();
+        
+        if(currentUser && currentUser.role === 'admin') {
+            if(!document.getElementById('view-dashboard').classList.contains('hidden')) renderManagerDashboard(false, true);
+            if(!document.getElementById('view-laporan').classList.contains('hidden')) renderLaporanUI();
+            if(!document.getElementById('view-rekapmenu').classList.contains('hidden')) renderRekapMenuTab(false, true);
+            if(!document.getElementById('view-laporanstok').classList.contains('hidden')) renderLaporanStokUI(false, true);
+            if(!document.getElementById('view-tutupbuku').classList.contains('hidden')) renderManagerTutupBuku();
+            if(!document.getElementById('view-mutasistok').classList.contains('hidden')) renderManagerMutasi(true);
+        }
+
         if(forceSync) showToast("Data berhasil ditarik!", "success");
         return true;
     } catch (e) { 
         console.error(e); 
-        hideLoading(); 
-        showToast("Gagal menarik data cloud", "error"); 
+        if(!isSilent) hideLoading(); 
+        if (e.message === 'TIMEOUT') showToast("Koneksi lambat (Timeout). Silakan coba lagi.", "error"); 
+        else showToast("Gagal menarik data cloud", "error"); 
         return false;
     }
 };
 
-window.renderManagerDashboard = async (isManualClick = false) => {
+window.renderManagerDashboard = async (isManualClick = false, skipFetch = false) => {
     if(!currentUser || currentUser.role !== 'admin') return;
     
     let sd = document.getElementById('dashStartDate').value; 
@@ -1818,7 +1874,10 @@ window.renderManagerDashboard = async (isManualClick = false) => {
     if(diffDays > 31 || diffDays < 0) { showToast("Range maksimal 31 hari!", "error"); return; } 
     
     // TARIK DATA DARI CLOUD SEBELUM RENDER
-    await window.fetchManagerDataOnDemand(sd, ed, isManualClick);
+    if(!skipFetch) {
+        const success = await window.fetchManagerDataOnDemand(sd, ed, isManualClick);
+        if(!success) return; 
+    }
 
     while(currDate <= endDate) { dates.push(currDate.toISOString().split('T')[0]); currDate.setDate(currDate.getDate() + 1); }
     
@@ -1961,7 +2020,7 @@ window.rejectRequest = async (reqId) => {
     } catch(e) { hideLoading(); showToast("Gagal menolak", "error"); }
 };
 
-window.renderRekapMenuTab = async (isManualClick = false) => {
+window.renderRekapMenuTab = async (isManualClick = false, skipFetch = false) => {
     const sd = document.getElementById('rmStartDate').value; 
     const ed = document.getElementById('rmEndDate').value; 
     const filterDropdown = document.getElementById('rmKategoriFilter');
@@ -1974,7 +2033,10 @@ window.renderRekapMenuTab = async (isManualClick = false) => {
         setTimeout(window.renderRekapMenuTab, 50); return; 
     }
     
-    await window.fetchManagerDataOnDemand(sd, ed, isManualClick);
+    if(!skipFetch) {
+        const success = await window.fetchManagerDataOnDemand(sd, ed, isManualClick);
+        if(!success) return;
+    }
     
     let itemSales = {}; let itemRevenue = {}; 
     const start = new Date(sd).getTime(); const end = new Date(ed).getTime() + 86400000;
@@ -2275,94 +2337,127 @@ window.switchNotifTab = (tabName) => {
     activeBtn.classList.add('bg-white', 'text-blue-600', 'shadow-sm', 'border', 'border-slate-200');
 };
 
-window.exportExcelMutasiStok = async () => {
+window.toggleAllDivisions = (el) => {
+    const checkboxes = document.querySelectorAll('.chk-divisi');
+    checkboxes.forEach(chk => {
+        if(chk.value !== 'ALL') chk.checked = el.checked;
+    });
+};
+
+window.prosesExportExcelLaporanStok = async () => {
     if (typeof ExcelJS === 'undefined') return showToast("Alat pembuat Excel belum siap.", "error");
 
-    const sd = document.getElementById('lsStartDate').value; 
-    const ed = document.getElementById('lsEndDate').value; 
-    const picFilter = document.getElementById('filterPicLaporanStok').value;
+    const sd = document.getElementById('excelLsStart').value;
+    const ed = document.getElementById('excelLsEnd').value;
     
     if(!sd || !ed) return showToast("Pilih rentang tanggal!", "error");
+    if(sd > ed) return showToast("Rentang tanggal tidak valid!", "error");
 
-    showLoading("Mencetak Excel Mutasi...");
+    const diffDays = (new Date(ed) - new Date(sd)) / (1000 * 60 * 60 * 24);
+    if(diffDays > 40) return showToast("Maksimal rentang 40 hari!", "error");
+
+    let selectedDivs = [];
+    document.querySelectorAll('.chk-divisi:checked').forEach(chk => {
+        if(chk.value !== 'ALL') selectedDivs.push(chk.value);
+    });
+
+    if(selectedDivs.length === 0) return showToast("Pilih minimal 1 divisi!", "error");
+
+    document.getElementById('modalExcelLaporanStok').classList.add('hidden');
+    showLoading("Mencetak Rekap Excel...");
     
     try {
         await window.fetchManagerDataOnDemand(sd, ed);
 
-        let rawData = mutasiDB.filter(m => m.tanggal >= sd && m.tanggal <= ed);
-        if (picFilter !== 'ALL') rawData = rawData.filter(m => m.role === picFilter);
-        
-        if(rawData.length === 0) {
+        const start = new Date(sd).getTime(); 
+        const end = new Date(ed).getTime() + 86400000; 
+        let aggregated = {};
+
+        mutasiDB.forEach(m => { 
+            const tTime = new Date(m.tanggal).getTime(); 
+            if(tTime >= start && tTime < end) { 
+                if(selectedDivs.includes(m.role)) {
+                    if(!aggregated[m.idStok]) { 
+                        aggregated[m.idStok] = { nama: m.namaBarang, role: m.role, masuk: 0, potongKasir: 0, manual: 0, rusak: 0, selisih: 0 }; 
+                    } 
+                    aggregated[m.idStok].masuk += (m.masuk || 0); 
+                    aggregated[m.idStok].potongKasir += (m.potongKasir || 0); 
+                    aggregated[m.idStok].manual += (m.manual || 0); 
+                    aggregated[m.idStok].rusak += (m.rusak || 0); 
+                    aggregated[m.idStok].selisih += (m.selisih || 0); 
+                }
+            } 
+        });
+
+        const resultKeys = Object.keys(aggregated); 
+        if(resultKeys.length === 0) { 
             hideLoading();
-            return showToast("Tidak ada data mutasi untuk dicetak.", "error");
+            return showToast("Tidak ada data rekap stok.", "error"); 
         }
 
+        const rawData = resultKeys.map(k => aggregated[k]);
+
         const wb = new ExcelJS.Workbook();
-        const ws = wb.addWorksheet('Laporan Mutasi Stok');
+        const ws = wb.addWorksheet('Laporan Pemakaian Stok');
         
         ws.columns = [
-            { key: 'no', width: 5 }, { key: 'barang', width: 25 }, { key: 'tgl', width: 12 },
-            { key: 'awal', width: 12 }, { key: 'masuk', width: 12 }, { key: 'kasir', width: 12 },
-            { key: 'manual', width: 12 }, { key: 'rusak', width: 12 }, { key: 'sistem', width: 15 },
-            { key: 'fisik', width: 15 }, { key: 'selisih', width: 15 }
+            { key: 'no', width: 5 }, { key: 'barang', width: 25 }, 
+            { key: 'masuk', width: 17 }, { key: 'kasir', width: 17 },
+            { key: 'manual', width: 17 }, { key: 'rusak', width: 17 }, 
+            { key: 'selisih', width: 17 }
         ];
 
-        ws.mergeCells('A1:K1');
+        ws.mergeCells('A1:G1');
         const titleRow = ws.getCell('A1');
-        titleRow.value = 'LAPORAN MUTASI STOK - PAWON NUSANTARA';
+        titleRow.value = 'REKAP LAPORAN PEMAKAIAN STOK - PAWON NUSANTARA';
         titleRow.font = { size: 14, bold: true };
         titleRow.alignment = { horizontal: 'center', vertical: 'middle' };
         titleRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFD700' } };
 
-        ws.mergeCells('A2:K2');
-        ws.getCell('A2').value = `Periode: ${sd.split('-').reverse().join('/')} s/d ${ed.split('-').reverse().join('/')}`;
+        ws.mergeCells('A2:G2');
+        ws.getCell('A2').value = `Periode Rekap: ${sd.split('-').reverse().join('/')} s/d ${ed.split('-').reverse().join('/')}`;
         ws.getCell('A2').font = { bold: true };
         ws.getCell('A2').alignment = { horizontal: 'center' };
 
         let currentRow = 4;
-        const divisions = picFilter === 'ALL' ? [...new Set(rawData.map(m => m.role))] : [picFilter];
         
-        divisions.sort().forEach(div => {
+        selectedDivs.sort().forEach(div => {
             let divData = rawData.filter(m => m.role === div);
-            divData.sort((a, b) => a.namaBarang.localeCompare(b.namaBarang) || a.tanggal.localeCompare(b.tanggal));
+            divData.sort((a, b) => a.nama.localeCompare(b.nama));
 
             if(divData.length > 0) {
-                // Judul Per Divisi
-                ws.mergeCells(`A${currentRow}:K${currentRow}`);
+                ws.mergeCells(`A${currentRow}:G${currentRow}`);
                 const divTitle = ws.getCell(`A${currentRow}`);
                 divTitle.value = `DIVISI: ${div.toUpperCase()}`;
                 divTitle.font = { bold: true, color: { argb: 'FFFFFFFF' } };
                 divTitle.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1E293B' } };
                 currentRow++;
 
-                // Header Tabel
-                const headers = ['No', 'Nama Barang', 'Tanggal', 'Stok Awal', 'Masuk', 'Kasir POS', 'Manual', 'Rusak', 'Sistem', 'Fisik Real', 'Selisih'];
+                const headers = ['No', 'Nama Barang', 'Total Masuk (Beli)', 'Total Terjual (Kasir)', 'Total Keluar Manual', 'Total Rusak/Basi', 'Total Selisih'];
                 ws.addRow(headers);
                 const headerRow = ws.getRow(currentRow);
                 headerRow.font = { bold: true };
                 headerRow.alignment = { horizontal: 'center', vertical: 'middle' };
-                for(let i=1; i<=11; i++) ws.getCell(currentRow, i).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE2E8F0' } };
+                for(let i=1; i<=7; i++) ws.getCell(currentRow, i).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE2E8F0' } };
                 currentRow++;
 
-                // Isi Data Per Divisi
                 divData.forEach((item, index) => {
                     const row = ws.addRow([
-                        index + 1, item.namaBarang, item.tanggal.split('-').reverse().join('/'), 
-                        item.sisaKemarin, item.masuk, item.potongKasir, item.manual, 
-                        item.rusak, item.seharusnya, item.fisik, item.selisih
+                        index + 1, item.nama, item.masuk, item.potongKasir, 
+                        item.manual, item.rusak, item.selisih
                     ]);
                     
                     row.alignment = { horizontal: 'center' };
                     row.getCell(2).alignment = { horizontal: 'left' }; 
                     
-                    const sel = row.getCell(11);
+                    const sel = row.getCell(7);
                     sel.font = { bold: true };
                     if (item.selisih < 0) sel.font.color = { argb: 'FFFF0000' };
                     else if (item.selisih > 0) sel.font.color = { argb: 'FF0000FF' };
                     else sel.font.color = { argb: 'FF008000' };
                     currentRow++;
                 });
-                currentRow++; // Spasi pemisah antar tabel divisi
+                currentRow++; 
             }
         });
 
@@ -2371,12 +2466,12 @@ window.exportExcelMutasiStok = async () => {
         const url = window.URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `Mutasi_Stok_${sd}_sd_${ed}.xlsx`;
+        a.download = `Rekap_Stok_${sd}_sd_${ed}.xlsx`;
         a.click();
         window.URL.revokeObjectURL(url);
         
         hideLoading();
-        showToast("Excel Mutasi diunduh!", "success");
+        showToast("Excel Rekap Stok diunduh!", "success");
     } catch (e) {
         console.error(e);
         hideLoading();
