@@ -118,18 +118,26 @@ window.kirimNotaWA = () => {
     const p = window.lastPrintedPayload;
     if(!p) return showToast("Data nota tidak ditemukan!", "error");
 
-    // Susun format teks rapi untuk dikirim via WA
+    // ==========================================
+    // AREA EDIT TEKS WHATSAPP
+    // ==========================================
+    // Gunakan tanda bintang (*) untuk membuat teks TebaL (Bold) di WA
+    // Gunakan kode \n untuk Enter (Pindah ke baris baru bawahnya)
+    
     let text = `*PAWON NUSANTARA*\n`;
     text += `Jl. ST Aminuddin | 0821 5431 6995\n`;
     text += `--------------------------------\n`;
+    
+    // Detail Informasi Nota
     text += `Nota: #${p.noNota} | Kasir: ${p.kasir}\n`;
     text += `Cust: ${p.customer} / Meja: ${p.meja}\n`;
     text += `Waktu: ${p.waktu}\n`;
     text += `--------------------------------\n`;
     
+    // Daftar Pesanan (Jangan ubah bagian ini agar harga otomatis)
     p.cart.forEach(c => {
         let harga = p.tipeOrder === 'DineIn' ? c.hargaDineIn : c.hargaGojek;
-        text += `${c.nama} (x${c.qty})\nRp ${formatIDRPlain(harga * c.qty)}\n`;
+        text += `▪ ${c.nama} (x${c.qty})\n   Rp ${formatIDRPlain(harga * c.qty)}\n`;
     });
     
     text += `--------------------------------\n`;
@@ -145,10 +153,13 @@ window.kirimNotaWA = () => {
     } else {
         text += `Metode   : ${p.pembayaran}\n`;
     }
+    text += `--------------------------------\n\n`; // \n ganda untuk spasi extra
     
-    text += `--------------------------------\n`;
-    text += `Follow IG kami @rmpawonnusantara untuk info menarik`;
-    text += `Terima kasih atas kunjungan Anda!`;
+    // Teks Bawah (Footer / Ucapan Terima Kasih)
+    text += `Terima kasih atas kunjungan Anda!\n`;
+    text += `Jangan lupa follow IG kami *@rmpawonnusantara* untuk promo menarik lainnya.`;
+    
+    // ==========================================
 
     // Eksekusi buka tab baru ke WhatsApp
     const url = `https://wa.me/${noWa}?text=${encodeURIComponent(text)}`;
@@ -543,22 +554,47 @@ window.renderSavedBillsUI = () => {
 };
 
 window.bukaSavedBill = async (id) => { 
-    if(cart.length > 0) return showToast("Kosongkan keranjang dulu!", "error"); 
     const sb = savedBillsDB.find(s=>s.id===id); 
     if(!sb) return; 
-    
-    cart = sb.cart; 
-    tipeOrder = sb.tipeOrder; 
-    discountInfo = sb.discountInfo || { type: '%', value: 0, amount: 0 }; 
-    document.getElementById('cartCustomer').value = sb.customer; 
-    document.getElementById('cartMeja').value = sb.meja; 
-    
-    showLoading("Membuka..."); 
-    await deleteDoc(getDocRef('saved_bills', id)); 
-    hideLoading(); 
-    
-    window.switchTab('kasir'); 
-    window.renderCart(); 
+
+    const processLoad = async (isMerge) => {
+        showLoading(isMerge ? "Menggabungkan Nota..." : "Membuka Nota...");
+        try {
+            if (isMerge) {
+                // Ekstrak nama asli nota yang ditarik
+                let originName = sb.customer !== 'Umum' ? sb.customer : (sb.meja !== '-' ? `Meja ${sb.meja}` : sb.namaTunda);
+                
+                sb.cart.forEach(item => {
+                    let mergeName = `${item.nama} (Dr: ${originName})`;
+                    const existing = cart.find(c => c.nama === mergeName);
+                    if (existing) existing.qty += item.qty;
+                    else cart.push({ ...item, nama: mergeName });
+                });
+            } else {
+                cart = sb.cart; 
+                discountInfo = sb.discountInfo || { type: '%', value: 0, amount: 0 }; 
+                document.getElementById('cartCustomer').value = sb.customer !== 'Umum' ? sb.customer : ''; 
+                document.getElementById('cartMeja').value = sb.meja !== '-' ? sb.meja : ''; 
+                setTipeOrder(sb.tipeOrder || 'DineIn'); // Memaksa tombol UI di layar agar ikut berubah sesuai jenis nota
+            }
+            
+            await deleteDoc(getDocRef('saved_bills', id)); 
+            hideLoading(); 
+            window.switchTab('kasir'); 
+            window.renderCart();
+            showToast(isMerge ? "Nota Berhasil Digabung!" : "Nota Dibuka");
+        } catch(e) {
+            console.error(e);
+            hideLoading();
+            showToast("Gagal memproses", "error");
+        }
+    };
+
+    if(cart.length > 0) {
+        window.showModal("Gabung Nota", `Keranjang saat ini tidak kosong. Apakah Anda ingin MENGGABUNGKAN item dari nota [${sb.namaTunda}] ke dalam keranjang ini?`, () => processLoad(true));
+    } else {
+        processLoad(false);
+    }
 };
 
 window.hapusSavedBill = (id) => { 
@@ -656,7 +692,7 @@ window.clearCart = () => {
     document.getElementById('cartCustomer').value = ''; 
     document.getElementById('cartMeja').value = ''; 
     discountInfo = { type: '%', value: 0, amount: 0 }; 
-    window.renderCart(); 
+    setTipeOrder('DineIn'); // Reset otomatis ke Dine In & menyegarkan keranjang
 };
 
 window.renderCart = () => {
@@ -690,6 +726,100 @@ window.renderCart = () => {
 
     document.getElementById('cartDiscountText').innerText = `- ${formatIDR(discountInfo.amount)}`; 
     document.getElementById('cartTotalText').innerText = formatIDR(finalTotal);
+};
+
+// PISAH NOTA (SPLIT BILL BY ITEM)
+window.bukaModalSplit = () => {
+    if (cart.length === 0) return showToast("Keranjang kosong!", "error");
+    const container = document.getElementById('splitItemsContainer');
+    container.innerHTML = '';
+    
+    cart.forEach((item, index) => {
+        const harga = tipeOrder === 'DineIn' ? item.hargaDineIn : item.hargaGojek;
+        container.innerHTML += `
+        <div class="flex items-center justify-between bg-white p-3 rounded-xl border border-slate-200 shadow-sm mb-2">
+            <label class="flex items-center space-x-3 cursor-pointer flex-1">
+                <input type="checkbox" id="chkSplit_${index}" class="w-5 h-5 text-purple-500 rounded border-slate-300 focus:ring-purple-500">
+                <div class="flex flex-col">
+                    <span class="text-xs font-bold text-slate-800 leading-tight">${item.nama}</span>
+                    <span class="text-[10px] font-black text-amber-600 mt-0.5">${formatIDR(harga)}</span>
+                </div>
+            </label>
+            <div class="flex items-center space-x-2 bg-slate-50 rounded-lg p-1 border border-slate-200 shadow-inner ml-2 shrink-0">
+                <button onclick="updateSplitQty(${index}, -1)" class="w-6 h-6 text-slate-500 hover:text-slate-800 font-black"><i class="fas fa-minus text-[10px]"></i></button>
+                <span id="splitQty_${index}" class="text-xs font-black text-slate-800 w-4 text-center" data-max="${item.qty}">1</span>
+                <button onclick="updateSplitQty(${index}, 1)" class="w-6 h-6 text-slate-500 hover:text-slate-800 font-black"><i class="fas fa-plus text-[10px]"></i></button>
+            </div>
+        </div>`;
+    });
+    
+    let currentCust = document.getElementById('cartCustomer').value;
+    let currentMeja = document.getElementById('cartMeja').value;
+    let baseName = currentCust ? currentCust : (currentMeja ? `Meja ${currentMeja}` : 'Pecahan Nota');
+    document.getElementById('inputSplitName').value = baseName + " (Split)";
+    
+    document.getElementById('modalSplitBill').classList.remove('hidden');
+};
+
+window.updateSplitQty = (idx, delta) => {
+    const el = document.getElementById(`splitQty_${idx}`);
+    let current = parseInt(el.innerText);
+    let max = parseInt(el.dataset.max);
+    let newVal = current + delta;
+    if(newVal >= 1 && newVal <= max) {
+        el.innerText = newVal;
+        document.getElementById(`chkSplit_${idx}`).checked = true;
+    }
+};
+
+window.closeSplitModal = () => document.getElementById('modalSplitBill').classList.add('hidden');
+
+window.prosesSplitBill = async () => {
+    const name = document.getElementById('inputSplitName').value || 'Split Bill';
+    let splitCart = [];
+    let remainCart = [];
+    
+    cart.forEach((item, index) => {
+        const chk = document.getElementById(`chkSplit_${index}`);
+        if (chk && chk.checked) {
+            const splitQty = parseInt(document.getElementById(`splitQty_${index}`).innerText);
+            splitCart.push({ ...item, qty: splitQty });
+            
+            if (splitQty < item.qty) {
+                remainCart.push({ ...item, qty: item.qty - splitQty });
+            }
+        } else {
+            remainCart.push(item);
+        }
+    });
+
+    if (splitCart.length === 0) return showToast("Pilih minimal 1 item untuk dipisah!", "error");
+    if (remainCart.length === 0) return showToast("Semua item dipilih, gunakan fitur Simpan (Tunda) biasa.", "error");
+
+    showLoading("Memisah Nota...");
+    try {
+        await addDoc(getColRef('saved_bills'), { 
+            waktu: getTimestampStr(), 
+            timestamp: Date.now(), 
+            kasir: currentUser.nama, 
+            namaTunda: name, 
+            customer: document.getElementById('cartCustomer').value || 'Umum', 
+            meja: document.getElementById('cartMeja').value || '-', 
+            cart: splitCart, 
+            tipeOrder: tipeOrder, 
+            discountInfo: { type: '%', value: 0, amount: 0 } // Diskon direset untuk nota pecahan
+        });
+        
+        cart = remainCart;
+        window.renderCart();
+        window.closeSplitModal();
+        hideLoading();
+        showToast("Nota Berhasil Dipisah!", "success");
+    } catch (e) {
+        console.error(e);
+        hideLoading();
+        showToast("Gagal memisah nota", "error");
+    }
 };
 
 // MIX PAY
@@ -781,7 +911,10 @@ window.prosesBayar = async (metode, mixCash = 0, mixTf = 0) => {
     try {
         await addDoc(getColRef('transactions'), payload); 
         let itemsTerjual = {}; 
-        cart.forEach(c => { itemsTerjual[c.nama.toLowerCase()] = (itemsTerjual[c.nama.toLowerCase()] || 0) + c.qty; });
+        cart.forEach(c => { 
+            let cleanName = c.nama.split(' (Dr:')[0].trim().toLowerCase();
+            itemsTerjual[cleanName] = (itemsTerjual[cleanName] || 0) + c.qty; 
+        });
         
         for (let stok of stocksDB) { 
             if (!stok.menuTerkait) continue; 
@@ -877,9 +1010,15 @@ window.simpanEditNota = async () => {
     
     try {
         let oldItems = {}; 
-        originalTrxData.cart.forEach(c => oldItems[c.nama.toLowerCase()] = (oldItems[c.nama.toLowerCase()] || 0) + c.qty); 
+        originalTrxData.cart.forEach(c => {
+            let cleanOld = c.nama.split(' (Dr:')[0].trim().toLowerCase();
+            oldItems[cleanOld] = (oldItems[cleanOld] || 0) + c.qty;
+        }); 
         let newItems = {}; 
-        cart.forEach(c => newItems[c.nama.toLowerCase()] = (newItems[c.nama.toLowerCase()] || 0) + c.qty);
+        cart.forEach(c => {
+            let cleanNew = c.nama.split(' (Dr:')[0].trim().toLowerCase();
+            newItems[cleanNew] = (newItems[cleanNew] || 0) + c.qty;
+        });
         
         for (let stok of stocksDB) { 
             if (!stok.menuTerkait) continue; 
