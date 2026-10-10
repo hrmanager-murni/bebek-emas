@@ -549,11 +549,19 @@ window.renderSavedBillsUI = () => {
         let grandTotal = totalNilai - diskonAmt;
         if(sb.tipeOrder === 'Gojek') { const g = getGojekFee(grandTotal); grandTotal = g.finalTotal; }
         
-        container.innerHTML += `<div class="bg-white p-5 rounded-3xl shadow-sm border border-slate-200 flex flex-col justify-between group hover:border-amber-400 transition"><div><div class="flex justify-between items-start mb-2"><span class="px-2.5 py-1 bg-amber-100 text-amber-700 text-[9px] font-black uppercase tracking-widest rounded-lg">${sb.waktu.substring(11,16)}</span><span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">${sb.tipeOrder}</span></div><h4 class="text-sm font-black text-slate-800 mb-1 leading-tight">${sb.namaTunda}</h4><p class="text-[10px] text-slate-500 font-medium mb-2">${itemsPreview}</p><div class="inline-block bg-slate-50 px-2 py-1 rounded border border-slate-100"><span class="text-[9px] font-bold text-slate-400 uppercase tracking-widest block">Total Estimasi</span><span class="text-xs font-black text-slate-700">${formatIDR(grandTotal)}</span></div></div><div class="flex space-x-2 mt-4 pt-4 border-t border-slate-100"><button onclick="bukaSavedBill('${sb.id}')" class="flex-1 py-2.5 bg-slate-900 hover:bg-amber-50 text-white hover:text-slate-900 font-black text-xs uppercase tracking-widest rounded-xl transition shadow-sm">Buka Nota</button><button onclick="hapusSavedBill('${sb.id}')" class="w-10 h-10 bg-rose-50 text-rose-500 hover:bg-rose-500 hover:text-white rounded-xl transition flex items-center justify-center border border-rose-100"><i class="fas fa-trash-alt"></i></button></div></div>`;
+        // Logika Tombol Dinamis: Buka Nota VS Gabung Nota
+        let actionBtn = '';
+        if (cart.length === 0) {
+            actionBtn = `<button onclick="bukaSavedBill('${sb.id}')" class="flex-1 py-2.5 bg-slate-900 hover:bg-amber-50 text-white hover:text-slate-900 font-black text-xs uppercase tracking-widest rounded-xl transition shadow-sm border border-slate-800">Buka Nota</button>`;
+        } else {
+            actionBtn = `<button onclick="bukaSavedBill('${sb.id}', true)" class="flex-1 py-2.5 bg-amber-500 hover:bg-amber-600 text-slate-900 font-black text-[10px] uppercase tracking-widest rounded-xl transition shadow-sm flex items-center justify-center leading-tight"><i class="fas fa-link mr-1"></i>Gabung Ke Kasir</button>`;
+        }
+
+        container.innerHTML += `<div class="bg-white p-5 rounded-3xl shadow-sm border border-slate-200 flex flex-col justify-between group hover:border-amber-400 transition"><div><div class="flex justify-between items-start mb-2"><span class="px-2.5 py-1 bg-amber-100 text-amber-700 text-[9px] font-black uppercase tracking-widest rounded-lg">${sb.waktu.substring(11,16)}</span><span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">${sb.tipeOrder}</span></div><h4 class="text-sm font-black text-slate-800 mb-1 leading-tight">${sb.namaTunda}</h4><p class="text-[10px] text-slate-500 font-medium mb-2">${itemsPreview}</p><div class="inline-block bg-slate-50 px-2 py-1 rounded border border-slate-100"><span class="text-[9px] font-bold text-slate-400 uppercase tracking-widest block">Total Estimasi</span><span class="text-xs font-black text-slate-700">${formatIDR(grandTotal)}</span></div></div><div class="flex space-x-2 mt-4 pt-4 border-t border-slate-100">${actionBtn}<button onclick="hapusSavedBill('${sb.id}')" class="w-10 h-10 bg-rose-50 text-rose-500 hover:bg-rose-500 hover:text-white rounded-xl transition flex items-center justify-center border border-rose-100"><i class="fas fa-trash-alt"></i></button></div></div>`;
     });
 };
 
-window.bukaSavedBill = async (id) => { 
+window.bukaSavedBill = async (id, forceMerge = false) => { 
     const sb = savedBillsDB.find(s=>s.id===id); 
     if(!sb) return; 
 
@@ -590,8 +598,8 @@ window.bukaSavedBill = async (id) => {
         }
     };
 
-    if(cart.length > 0) {
-        window.showModal("Gabung Nota", `Keranjang saat ini tidak kosong. Apakah Anda ingin MENGGABUNGKAN item dari nota [${sb.namaTunda}] ke dalam keranjang ini?`, () => processLoad(true));
+    if(forceMerge || cart.length > 0) {
+        window.showModal("Gabung Nota", `Apakah Anda yakin ingin MENGGABUNGKAN seluruh pesanan dari [${sb.namaTunda}] ke dalam tagihan Kasir saat ini?`, () => processLoad(true));
     } else {
         processLoad(false);
     }
@@ -741,22 +749,26 @@ window.bukaModalSplit = () => {
             <label class="flex items-center space-x-3 cursor-pointer flex-1">
                 <input type="checkbox" id="chkSplit_${index}" class="w-5 h-5 text-purple-500 rounded border-slate-300 focus:ring-purple-500">
                 <div class="flex flex-col">
-                    <span class="text-xs font-bold text-slate-800 leading-tight">${item.nama}</span>
-                    <span class="text-[10px] font-black text-amber-600 mt-0.5">${formatIDR(harga)}</span>
+                    <span class="text-xs font-black text-slate-800 leading-tight">${item.nama}</span>
+                    <span class="text-[9px] font-bold text-slate-500 mt-0.5">Total dipesan: <span class="font-black text-slate-700">${item.qty}</span> porsi</span>
+                    <span class="text-[10px] font-black text-amber-600 mt-0.5">${formatIDR(harga)} / porsi</span>
                 </div>
             </label>
-            <div class="flex items-center space-x-2 bg-slate-50 rounded-lg p-1 border border-slate-200 shadow-inner ml-2 shrink-0">
-                <button onclick="updateSplitQty(${index}, -1)" class="w-6 h-6 text-slate-500 hover:text-slate-800 font-black"><i class="fas fa-minus text-[10px]"></i></button>
-                <span id="splitQty_${index}" class="text-xs font-black text-slate-800 w-4 text-center" data-max="${item.qty}">1</span>
-                <button onclick="updateSplitQty(${index}, 1)" class="w-6 h-6 text-slate-500 hover:text-slate-800 font-black"><i class="fas fa-plus text-[10px]"></i></button>
+            <div class="flex flex-col items-center">
+                <span class="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Dipindah</span>
+                <div class="flex items-center space-x-2 bg-slate-50 rounded-lg p-1 border border-slate-200 shadow-inner shrink-0">
+                    <button onclick="updateSplitQty(${index}, -1)" class="w-6 h-6 text-slate-500 hover:text-slate-800 font-black flex items-center justify-center bg-white rounded shadow-sm"><i class="fas fa-minus text-[10px]"></i></button>
+                    <span id="splitQty_${index}" class="text-xs font-black text-slate-800 w-4 text-center" data-max="${item.qty}">1</span>
+                    <button onclick="updateSplitQty(${index}, 1)" class="w-6 h-6 text-slate-500 hover:text-slate-800 font-black flex items-center justify-center bg-white rounded shadow-sm"><i class="fas fa-plus text-[10px]"></i></button>
+                </div>
             </div>
         </div>`;
     });
     
     let currentCust = document.getElementById('cartCustomer').value;
     let currentMeja = document.getElementById('cartMeja').value;
-    let baseName = currentCust ? currentCust : (currentMeja ? `Meja ${currentMeja}` : 'Pecahan Nota');
-    document.getElementById('inputSplitName').value = baseName + " (Split)";
+    let baseName = currentCust ? currentCust : (currentMeja ? `Meja ${currentMeja}` : 'Nota');
+    document.getElementById('inputSplitName').value = baseName + " - Pecahan";
     
     document.getElementById('modalSplitBill').classList.remove('hidden');
 };
