@@ -497,10 +497,14 @@ window.bukaModalSimpanNota = () => {
     if(cart.length === 0) return showToast("Pesanan kosong!", "error"); 
     let cust = document.getElementById('cartCustomer').value; 
     let meja = document.getElementById('cartMeja').value; 
-    let autoName = "";
+    let autoName = document.getElementById('inputParkName').value; // Ambil nama yang tertinggal di memori jika ada
+    
+    // Skala prioritas penamaan:
     if(cust && meja) autoName = cust + " - " + meja; 
-    else if (cust) autoName = cust; 
-    else if (meja) autoName = "Meja " + meja;
+    else if (cust && !autoName.includes(cust)) autoName = cust; 
+    else if (meja && !autoName.includes(meja)) autoName = "Meja " + meja;
+    // Jika semua kosong, autoName akan tetap pakai nama sebelumnya (contoh: "Ibu Baju Merah")
+    
     document.getElementById('inputParkName').value = autoName; 
     document.getElementById('modalParkBill').classList.remove('hidden'); 
 };
@@ -583,6 +587,7 @@ window.bukaSavedBill = async (id, forceMerge = false) => {
                 discountInfo = sb.discountInfo || { type: '%', value: 0, amount: 0 }; 
                 document.getElementById('cartCustomer').value = sb.customer !== 'Umum' ? sb.customer : ''; 
                 document.getElementById('cartMeja').value = sb.meja !== '-' ? sb.meja : ''; 
+                document.getElementById('inputParkName').value = sb.namaTunda; // Mempertahankan nama asli nota
                 setTipeOrder(sb.tipeOrder || 'DineIn'); // Memaksa tombol UI di layar agar ikut berubah sesuai jenis nota
             }
             
@@ -699,6 +704,7 @@ window.clearCart = () => {
     cart = []; 
     document.getElementById('cartCustomer').value = ''; 
     document.getElementById('cartMeja').value = ''; 
+    document.getElementById('inputParkName').value = ''; // Reset nama tunda sebelumnya
     discountInfo = { type: '%', value: 0, amount: 0 }; 
     setTipeOrder('DineIn'); // Reset otomatis ke Dine In & menyegarkan keranjang
 };
@@ -844,31 +850,41 @@ window.bukaMixPay = () => {
     }
     document.getElementById('mixTotalTagihan').innerText = formatIDR(totalAfterDisc); 
     document.getElementById('mixInputCash').value = ''; 
-    document.getElementById('mixSisaTf').innerText = formatIDR(totalAfterDisc); 
+    document.getElementById('mixInputTf').value = ''; 
     document.getElementById('modalMixPay').classList.remove('hidden');
 };
 
-window.hitungMixTf = () => {
+window.hitungMix = (sumber) => {
     let totalAfterDisc = subtotalCart - discountInfo.amount; 
     if (tipeOrder === 'Gojek') { 
         const g = getGojekFee(totalAfterDisc); 
         totalAfterDisc = g.finalTotal; 
     }
-    let cashPay = getCleanNumber(document.getElementById('mixInputCash').value); 
-    let sisa = totalAfterDisc - cashPay; 
-    if (sisa < 0) sisa = 0; 
-    document.getElementById('mixSisaTf').innerText = formatIDR(sisa);
+    
+    if (sumber === 'CASH') {
+        let cashPay = getCleanNumber(document.getElementById('mixInputCash').value);
+        let sisaTf = totalAfterDisc - cashPay;
+        if(sisaTf < 0) sisaTf = 0;
+        document.getElementById('mixInputTf').value = sisaTf > 0 ? sisaTf.toLocaleString('id-ID') : '';
+    } else if (sumber === 'TF') {
+        let tfPay = getCleanNumber(document.getElementById('mixInputTf').value);
+        let sisaCash = totalAfterDisc - tfPay;
+        if(sisaCash < 0) sisaCash = 0;
+        document.getElementById('mixInputCash').value = sisaCash > 0 ? sisaCash.toLocaleString('id-ID') : '';
+    }
 };
 
 window.prosesMixPay = () => {
     let cashPay = getCleanNumber(document.getElementById('mixInputCash').value); 
+    let tfPay = getCleanNumber(document.getElementById('mixInputTf').value);
     let totalAfterDisc = subtotalCart - discountInfo.amount; 
     if (tipeOrder === 'Gojek') { 
         const g = getGojekFee(totalAfterDisc); 
         totalAfterDisc = g.finalTotal; 
     }
-    let tfPay = totalAfterDisc - cashPay; 
-    if (cashPay <= 0 || tfPay <= 0) return showToast("Masukan Nominal Mix Pay Tidak Valid!", "error"); 
+    
+    if (cashPay + tfPay < totalAfterDisc) return showToast("Nominal belum mencukupi tagihan!", "error"); 
+    if (cashPay <= 0 || tfPay <= 0) return showToast("Isi kedua nominal Mix Pay!", "error"); 
     
     document.getElementById('modalMixPay').classList.add('hidden'); 
     prosesBayar('MIX', cashPay, tfPay);
