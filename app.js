@@ -1312,21 +1312,24 @@ window.renderTutupBukuUI = () => {
     }
 };
 
-window.renderManagerTutupBuku = () => {
+window.renderManagerTutupBuku = async (skipFetch = false) => {
     const bln = document.getElementById('filterTbManager').value; 
     const container = document.getElementById('tbManagerList'); 
-    container.innerHTML = ''; 
     if(!bln) return;
     
-    const btnContainer = document.createElement('div');
-    btnContainer.className = 'col-span-full mb-2 flex justify-end';
-    btnContainer.innerHTML = `<button onclick="document.getElementById('modalExcelTb').classList.remove('hidden')" class="px-5 py-3 bg-emerald-500 hover:bg-emerald-600 text-white font-black text-xs uppercase tracking-widest rounded-xl shadow-md transition flex items-center space-x-2"><i class="fas fa-file-excel text-lg"></i><span>Download Excel Profesional</span></button>`;
-    container.appendChild(btnContainer);
-
+    if(!skipFetch) {
+        // Otomatis tarik data 1 bulan penuh (Tgl 01 s/d 31) dari Cloud
+        const sd = bln + '-01';
+        const ed = bln + '-31';
+        const success = await window.fetchManagerDataOnDemand(sd, ed);
+        if(!success) return;
+    }
+    
+    container.innerHTML = ''; 
     const data = closeRegistersDB.filter(c => c.tanggal.startsWith(bln)).sort((a,b) => b.timestamp - a.timestamp);
     
     if(data.length === 0) { 
-        container.innerHTML += `<div class="col-span-full p-8 text-center text-slate-400 font-bold bg-white border border-slate-200 border-dashed rounded-3xl mt-2"><i class="fas fa-folder-open text-3xl mb-2 opacity-50 block"></i>Belum ada data Tutup Buku di bulan ini.</div>`; 
+        container.innerHTML = `<div class="col-span-full p-8 text-center text-slate-400 font-bold bg-white border border-slate-200 border-dashed rounded-3xl mt-2"><i class="fas fa-folder-open text-3xl mb-2 opacity-50 block"></i>Belum ada data Tutup Buku di bulan ini.</div>`; 
         return; 
     }
     
@@ -2006,7 +2009,7 @@ window.fetchManagerDataOnDemand = async (startD, endD, forceSync = false, isSile
             if(!document.getElementById('view-laporan').classList.contains('hidden')) renderLaporanUI();
             if(!document.getElementById('view-rekapmenu').classList.contains('hidden')) renderRekapMenuTab(false, true);
             if(!document.getElementById('view-laporanstok').classList.contains('hidden')) renderLaporanStokUI(false, true);
-            if(!document.getElementById('view-tutupbuku').classList.contains('hidden')) renderManagerTutupBuku();
+            if(!document.getElementById('view-tutupbuku').classList.contains('hidden')) renderManagerTutupBuku(true);
             if(!document.getElementById('view-mutasistok').classList.contains('hidden')) renderManagerMutasi(true);
         }
 
