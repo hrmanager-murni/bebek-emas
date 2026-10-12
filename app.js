@@ -21,7 +21,7 @@ const getColRef = (colName) => collection(db, 'artifacts', appId, 'public', 'dat
 const getDocRef = (colName, docId) => doc(db, 'artifacts', appId, 'public', 'data', colName, docId);
 
 let currentUser = null;
-let accountsDB = [], menusDB = [], stocksDB = [], transactionsDB = [], expensesDB = [], mutasiDB = [], closeRegistersDB = [], savedBillsDB = [], requestsDB = [], trashedBillsDB = [];
+let accountsDB = [], menusDB = [], stocksDB = [], transactionsDB = [], expensesDB = [], mutasiDB = [], closeRegistersDB = [], savedBillsDB = [], requestsDB = [], trashedBillsDB = [], reservationsDB = [];
 let cart = [], tipeOrder = 'DineIn', isCloudReady = false;
 let discountInfo = { type: '%', value: 0, amount: 0 }; 
 let subtotalCart = 0;
@@ -29,7 +29,7 @@ let activeKategoriKasir = 'ALL';
 let mutasiDraftHariIni = [];
 let mutasiSaveTimeout = null;
 
-window.arsipData = { transactions: [], expenses: [], close_registers: [], stock_mutations: [] };
+window.arsipData = { transactions: [], expenses: [], close_registers: [], stock_mutations: [], reservations: [] };
 window.thermalPrinter = null; 
 window.lastPrintedPayload = null;
 window.mutasiDrafts = JSON.parse(localStorage.getItem('mutasiDrafts')) || {};
@@ -330,12 +330,13 @@ function setupRealtimeSync() {
             if(col === 'requests') { requestsDB = dataToUse; if(currentUser && currentUser.role === 'admin' && !document.getElementById('view-dashboard').classList.contains('hidden')) renderManagerDashboard(); if(currentUser && currentUser.role !== 'admin' && !document.getElementById('view-mutasistok').classList.contains('hidden')) loadMutasiDataUI(); }
             // TAMBAHAN SINKRONISASI TONG SAMPAH
             if(col === 'trashed_bills') { trashedBillsDB = dataToUse; if(currentUser && currentUser.role === 'kasir' && !document.getElementById('view-tongsampah').classList.contains('hidden')) window.renderTrashUI(); }
+            if(col === 'reservations') { reservationsDB = dataToUse; if(currentUser && ['kasir','admin'].includes(currentUser.role) && !document.getElementById('view-reservasi').classList.contains('hidden')) window.renderReservasiUI(); }
         }, err => console.error(err));
     };
     
     handleSync('accounts'); handleSync('menus'); handleSync('stocks'); 
     handleSync('transactions'); handleSync('expenses'); handleSync('close_registers'); 
-    handleSync('stock_mutations'); handleSync('saved_bills'); handleSync('requests'); handleSync('trashed_bills'); // TAMBAH DISINI JUGA
+    handleSync('stock_mutations'); handleSync('saved_bills'); handleSync('requests'); handleSync('trashed_bills'); handleSync('reservations');
 };
 
 // LOGIN & AUTHENTICATION
@@ -370,7 +371,7 @@ function proceedLogin(accountData) {
         document.getElementById('labelUserRole').innerText = currentUser.nama + " (" + currentUser.role + ")"; 
         document.getElementById('viewLanding').classList.add('hidden');
         
-        const allTabs = ['dashboard', 'rekapmenu', 'kasir', 'notatersimpan', 'laporan', 'pengeluaran', 'tutupbuku', 'kelolamenu', 'kelolastok', 'mutasistok', 'laporanstok', 'tongsampah'];
+        const allTabs = ['dashboard', 'rekapmenu', 'kasir', 'reservasi', 'notatersimpan', 'laporan', 'pengeluaran', 'tutupbuku', 'kelolamenu', 'kelolastok', 'mutasistok', 'laporanstok', 'tongsampah'];
         allTabs.forEach(t => {
             const el = document.getElementById(`tab-${t}`);
             if (el) el.classList.add('hidden');
@@ -397,7 +398,7 @@ function proceedLogin(accountData) {
     } else {
         
         if (currentUser.role === 'kasir') {
-            ['kasir', 'notatersimpan', 'laporan', 'pengeluaran', 'tutupbuku', 'kelolamenu', 'tongsampah'].forEach(t => {
+            ['kasir', 'reservasi', 'notatersimpan', 'laporan', 'pengeluaran', 'tutupbuku', 'kelolamenu', 'tongsampah'].forEach(t => {
                 const el = document.getElementById(`tab-${t}`);
                 if (el) el.classList.remove('hidden');
             });
@@ -463,6 +464,7 @@ window.switchTab = (tabName) => {
     if(activeView) activeView.classList.remove('hidden');
 
     if (tabName === 'laporan') window.renderLaporanUI();
+    else if (tabName === 'reservasi') window.renderReservasiUI();
     else if (tabName === 'pengeluaran') window.renderPengeluaranUI();
     else if (tabName === 'tutupbuku') window.renderTutupBukuUI();
     else if (tabName === 'mutasistok') window.loadMutasiDataUI();
@@ -2665,6 +2667,270 @@ window.addEventListener('online', () => {
     document.getElementById('koneksiTeks').innerText = "CLOUD AKTIF";
     showToast("Internet kembali! Menyelaraskan data ke server...", "success");
 });
+
+// ==========================================
+// SISTEM RESERVASI (TAHAP 1 & 2)
+// ==========================================
+
+window.masterMeja = {
+    "Outdoor": Array.from({length: 14}, (_, i) => ({ id: `Meja ${i+1}`, cap: 6, type: 'Kursi' })),
+    "Indoor": [ 
+        {id: 'Meja 15', cap: 2, type: 'Kursi'}, {id: 'Meja 16', cap: 6, type: 'Kursi'}, 
+        {id: 'Meja 17', cap: 9, type: 'Kursi'}, {id: 'Meja 30', cap: 4, type: 'Kursi'}, {id: 'Meja 31', cap: 4, type: 'Kursi'} 
+    ],
+    "Lesehan": [
+        {id: 'Meja 26', cap: 4, type: 'Lesehan'}, {id: 'Meja 27', cap: 4, type: 'Lesehan'},
+        {id: 'Meja 28', cap: 4, type: 'Lesehan'}, {id: 'Meja 29', cap: 4, type: 'Lesehan'}
+    ],
+    "Lantai 2": [
+        {id: 'Meja 18', cap: 6, type: 'Kursi'}, {id: 'Meja 19', cap: 6, type: 'Kursi'},
+        {id: 'Meja 20', cap: 6, type: 'Kursi'}, {id: 'Meja 21', cap: 3, type: 'Kursi'},
+        {id: 'Meja 22', cap: 8, type: 'Lesehan'}, {id: 'Meja 23', cap: 8, type: 'Lesehan'},
+        {id: 'Meja 24', cap: 8, type: 'Lesehan'}, {id: 'Meja 25', cap: 8, type: 'Lesehan'}
+    ]
+};
+
+let mejaTerpilih = [];
+let targetKursi = 0;
+let totalKursiTerpilih = 0;
+let aktifAreaMeja = 'Outdoor';
+
+window.renderReservasiUI = () => {
+    let tgl = document.getElementById('filterTglReservasi').value;
+    if (!tgl) { 
+        document.getElementById('filterTglReservasi').value = getTodayYMD(); 
+        tgl = getTodayYMD(); 
+    }
+    
+    const container = document.getElementById('reservasiContainer');
+    if(!container) return;
+    container.innerHTML = '';
+    
+    let filtered = reservationsDB.filter(r => r.tanggalRes === tgl);
+    if(filtered.length === 0) {
+        container.innerHTML = `<div class="col-span-full p-8 text-center text-slate-400 font-bold bg-white border border-slate-200 border-dashed rounded-3xl"><i class="fas fa-calendar-xmark text-5xl mb-3 opacity-30 block"></i>Belum ada jadwal reservasi di tanggal ini.</div>`;
+        return;
+    }
+    
+    filtered.sort((a, b) => a.jamRes.localeCompare(b.jamRes)).forEach(r => {
+        let dpBadge = r.dp > 0 ? `<span class="bg-emerald-100 text-emerald-700 px-2 py-1 rounded text-[9px] font-black uppercase tracking-widest border border-emerald-200">DP: ${formatIDR(r.dp)}</span>` : `<span class="bg-slate-100 text-slate-500 px-2 py-1 rounded text-[9px] font-black uppercase tracking-widest border border-slate-200">TANPA DP</span>`;
+        let catText = r.catatan ? `<p class="text-[10px] text-slate-500 font-bold mt-2 bg-slate-50 p-2 rounded-lg border border-slate-100"><i class="fas fa-quote-left text-slate-300 mr-1"></i>${r.catatan}</p>` : '';
+        
+        container.innerHTML += `<div class="bg-white p-5 rounded-3xl shadow-sm border border-slate-200 hover:border-amber-400 transition group flex flex-col justify-between">
+            <div>
+                <div class="flex justify-between items-start border-b border-slate-100 pb-3 mb-3">
+                    <div>
+                        <h4 class="font-black text-slate-800 text-sm mb-0.5">${r.nama}</h4>
+                        <span class="text-[9px] text-slate-400 font-bold uppercase tracking-widest"><i class="fas fa-user-friends mr-1"></i>${r.jmlOrang} Org • <i class="fas fa-phone ml-1 mr-1"></i>${r.kontak || '-'}</span>
+                    </div>
+                    <div class="text-right">
+                        <span class="bg-amber-100 text-amber-700 px-2 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest block mb-1 shadow-sm"><i class="fas fa-clock mr-1"></i>${r.jamRes}</span>
+                    </div>
+                </div>
+                <div class="flex justify-between items-center mb-1">
+                    <p class="text-[10px] font-black text-amber-600 uppercase tracking-widest leading-relaxed"><i class="fas fa-chair mr-1.5"></i>${r.meja.join(', ')}</p>
+                    ${dpBadge}
+                </div>
+                ${catText}
+            </div>
+            <div class="flex space-x-2 mt-4 pt-4 border-t border-slate-100">
+                <button onclick="window.switchTab('notatersimpan')" class="flex-1 py-2.5 bg-slate-900 hover:bg-slate-800 text-amber-400 font-black text-[10px] uppercase tracking-widest rounded-xl transition shadow-md flex items-center justify-center"><i class="fas fa-utensils mr-1.5"></i>Isi Menu</button>
+                <button onclick="hapusReservasi('${r.id}')" class="w-10 h-10 bg-rose-50 text-rose-500 hover:bg-rose-500 hover:text-white rounded-xl transition flex items-center justify-center border border-rose-100" title="Batalkan Reservasi"><i class="fas fa-times"></i></button>
+            </div>
+        </div>`;
+    });
+};
+
+window.simpanReservasiAkhir = async () => {
+    if(!auth.currentUser) return showToast("Sistem Offline!", "error");
+    
+    const nama = document.getElementById('resNama').value.trim();
+    const kontak = document.getElementById('resKontak').value.trim();
+    const tglRes = document.getElementById('resTgl').value;
+    const jamRes = document.getElementById('resJam').value;
+    const jmlOrang = parseInt(document.getElementById('resJmlOrang').value);
+    const nominalDp = getCleanNumber(document.getElementById('resDpNominal').value);
+    const metodeDp = document.getElementById('resDpMetode').value;
+    const catatan = document.getElementById('resCatatan').value.trim();
+    const mejaArray = mejaTerpilih.map(m => m.id);
+    
+    if(mejaArray.length === 0) return showToast("Minimal pilih 1 meja!", "error");
+
+    showLoading("Menyimpan Reservasi & DP...");
+
+    try {
+        const idReservasiToken = "RESV-" + Date.now();
+        
+        // PELURU 1: Simpan Data ke Tab Reservasi
+        await addDoc(getColRef('reservations'), {
+            idToken: idReservasiToken,
+            nama: nama, kontak: kontak, tanggalRes: tglRes, jamRes: jamRes, jmlOrang: jmlOrang,
+            meja: mejaArray, dp: nominalDp, metodeDp: metodeDp, catatan: catatan,
+            kasir: currentUser.nama, timestamp: Date.now()
+        });
+
+        // PELURU 2: Jika Ada DP, Masukkan ke Laporan Kasir & Tutup Buku Hari Ini
+        if (nominalDp > 0) {
+            const dateStr = getTodayYMD();
+            const todayTrx = transactionsDB.filter(t => t.tanggal === dateStr); 
+            const noNota = "DP" + (todayTrx.length + 1).toString().padStart(2, '0');
+            
+            await addDoc(getColRef('transactions'), {
+                waktu: getTimestampStr(), tanggal: dateStr, timestamp: Date.now(),
+                kasir: currentUser.nama, tipeOrder: 'DineIn', pembayaran: metodeDp,
+                total: nominalDp, totalBayar: nominalDp, subtotal: nominalDp, diskonRp: 0, gojekFee: 0,
+                cart: [{ id: 'dp_res', nama: `[DP RESERVASI] ${tglRes} - ${nama}`, hargaDineIn: nominalDp, hargaGojek: nominalDp, qty: 1 }],
+                customer: nama, meja: mejaArray.join(','), noNota: noNota, status: 'Aktif',
+                discountInfo: { type: '%', value: 0, amount: 0 }
+            });
+        }
+
+        // PELURU 3: Buat Draft Nota Tertunda (Untuk diisi Menu nanti)
+        await addDoc(getColRef('saved_bills'), {
+            waktu: getTimestampStr(), timestamp: Date.now(), kasir: currentUser.nama,
+            namaTunda: `[RESERVASI] ${nama}`, customer: nama, meja: mejaArray.join(','),
+            cart: [], tipeOrder: 'DineIn', discountInfo: { type: '%', value: 0, amount: 0 },
+            isReservasi: true, tokenRes: idReservasiToken, dpTelahDibayar: nominalDp
+        });
+
+        hideLoading();
+        showToast("Reservasi & DP Berhasil Disimpan!", "success");
+        closeModalReservasi();
+        renderReservasiUI();
+        
+        // Pindah otomatis ke Tab Reservasi agar kasir bisa lihat hasilnya
+        window.switchTab('reservasi');
+
+    } catch (e) {
+        console.error(e); hideLoading(); showToast("Gagal menyimpan reservasi", "error");
+    }
+};
+
+window.hapusReservasi = (id) => {
+    window.showModal("Batalkan Reservasi", "Yakin ingin membatalkan Reservasi ini? (Catatan: Jika ada DP yang sudah masuk Laporan, Anda harus membatalkannya manual di tab Laporan Kasir).", async () => {
+        if(!auth.currentUser) return;
+        showLoading("Membatalkan...");
+        await deleteDoc(getDocRef('reservations', id));
+        hideLoading();
+        showToast("Reservasi Dibatalkan.");
+    });
+};
+
+window.bukaModalReservasiBaru = () => {
+    document.getElementById('resNama').value = '';
+    document.getElementById('resKontak').value = '';
+    document.getElementById('resTgl').value = getTodayYMD();
+    document.getElementById('resJam').value = '18:00';
+    document.getElementById('resJmlOrang').value = '';
+    
+    mejaTerpilih = []; targetKursi = 0; totalKursiTerpilih = 0;
+    
+    document.getElementById('btnTabResMeja').classList.add('opacity-50', 'cursor-not-allowed');
+    document.getElementById('btnTabResMeja').disabled = true;
+    document.getElementById('btnTabResBayar').classList.add('opacity-50', 'cursor-not-allowed');
+    document.getElementById('btnTabResBayar').disabled = true;
+    
+    switchTabReservasi('data');
+    document.getElementById('modalReservasi').classList.remove('hidden');
+};
+
+window.closeModalReservasi = () => { document.getElementById('modalReservasi').classList.add('hidden'); };
+
+window.switchTabReservasi = (tab) => {
+    ['data', 'meja', 'bayar'].forEach(t => {
+        document.getElementById(`tabRes${t.charAt(0).toUpperCase() + t.slice(1)}`).classList.add('hidden');
+        const btn = document.getElementById(`btnTabRes${t.charAt(0).toUpperCase() + t.slice(1)}`);
+        btn.classList.remove('bg-white', 'text-amber-600', 'shadow-sm', 'border-slate-200');
+        btn.classList.add('text-slate-400', 'border-transparent');
+    });
+    
+    document.getElementById(`tabRes${tab.charAt(0).toUpperCase() + tab.slice(1)}`).classList.remove('hidden');
+    const activeBtn = document.getElementById(`btnTabRes${tab.charAt(0).toUpperCase() + tab.slice(1)}`);
+    activeBtn.classList.remove('text-slate-400', 'border-transparent');
+    activeBtn.classList.add('bg-white', 'text-amber-600', 'shadow-sm', 'border-slate-200');
+    
+    if (tab === 'meja') renderGridMeja(aktifAreaMeja);
+};
+
+window.validasiDataTamuLanjut = () => {
+    const nm = document.getElementById('resNama').value.trim();
+    const tgl = document.getElementById('resTgl').value;
+    const jam = document.getElementById('resJam').value;
+    const jml = parseInt(document.getElementById('resJmlOrang').value);
+    
+    if (!nm || !tgl || !jam || !jml || jml <= 0) return showToast("Lengkapi form bertanda Bintang (*)", "error");
+    
+    targetKursi = jml;
+    document.getElementById('resTargetKursi').innerText = targetKursi;
+    
+    const btnMeja = document.getElementById('btnTabResMeja');
+    btnMeja.classList.remove('opacity-50', 'cursor-not-allowed');
+    btnMeja.disabled = false;
+    
+    updateKapasitasUI();
+    switchTabReservasi('meja');
+};
+
+window.renderGridMeja = (area) => {
+    aktifAreaMeja = area;
+    ['Outdoor', 'Indoor', 'Lesehan', 'Lantai 2'].forEach(a => {
+        const btn = document.getElementById(`btnArea-${a}`);
+        if(a === area) btn.className = "px-4 py-2 bg-slate-800 text-amber-400 font-black text-[9px] sm:text-[10px] uppercase tracking-widest rounded-lg whitespace-nowrap shadow-md";
+        else btn.className = "px-4 py-2 bg-white text-slate-500 hover:bg-slate-100 border border-slate-200 font-black text-[9px] sm:text-[10px] uppercase tracking-widest rounded-lg whitespace-nowrap shadow-sm";
+    });
+    
+    const container = document.getElementById('gridMejaContainer');
+    container.innerHTML = '';
+    
+    masterMeja[area].forEach(m => {
+        const isSelected = mejaTerpilih.some(x => x.id === m.id);
+        const bgClass = isSelected ? 'bg-amber-400 text-slate-900 border-amber-500 shadow-md transform scale-95' : 'bg-white text-slate-700 border-slate-200 hover:border-amber-400 shadow-sm hover:-translate-y-1';
+        const checkIcon = isSelected ? '<i class="fas fa-check-circle text-slate-900 absolute top-2 right-2 text-sm drop-shadow-sm"></i>' : '';
+        const iconKursi = m.type === 'Lesehan' ? '<i class="fas fa-rug text-amber-600 mb-1.5 text-lg"></i>' : '<i class="fas fa-chair text-amber-600 mb-1.5 text-lg"></i>';
+        
+        container.innerHTML += `
+        <div onclick="toggleMejaReservasi('${m.id}', ${m.cap})" class="${bgClass} border-2 rounded-2xl p-3 flex flex-col items-center justify-center cursor-pointer transition-all duration-200 relative group h-24">
+            ${checkIcon}
+            ${iconKursi}
+            <span class="font-black text-xs leading-none mb-1">${m.id}</span>
+            <span class="text-[8px] font-bold uppercase tracking-widest ${isSelected ? 'text-slate-800 bg-amber-300' : 'text-slate-500 bg-slate-100'} px-1.5 py-0.5 rounded-md"><i class="fas fa-user mr-1"></i>${m.cap} Org</span>
+        </div>`;
+    });
+};
+
+window.toggleMejaReservasi = (id, cap) => {
+    const idx = mejaTerpilih.findIndex(x => x.id === id);
+    if (idx >= 0) { mejaTerpilih.splice(idx, 1); totalKursiTerpilih -= cap; } 
+    else { mejaTerpilih.push({ id, cap }); totalKursiTerpilih += cap; }
+    
+    updateKapasitasUI();
+    renderGridMeja(aktifAreaMeja);
+};
+
+window.updateKapasitasUI = () => {
+    document.getElementById('resJmlKursiTerpilih').innerText = totalKursiTerpilih;
+    const kotak = document.getElementById('resIndikatorKapasitas');
+    const teks = kotak.querySelector('div');
+    const label = kotak.querySelector('span');
+    const btnLanjut = document.getElementById('btnTabResBayar');
+    
+    if (totalKursiTerpilih >= targetKursi) {
+        kotak.className = "bg-emerald-50 border-2 border-emerald-400 p-3 rounded-xl mb-4 text-center transition-colors duration-300 shadow-sm shrink-0";
+        teks.className = "text-xl font-black text-emerald-700 transition-colors duration-300";
+        label.innerText = "KAPASITAS MENCUKUPI ✅";
+        label.className = "text-[10px] font-black uppercase tracking-widest block mb-1 text-emerald-600";
+        btnLanjut.classList.remove('opacity-50', 'cursor-not-allowed');
+        btnLanjut.disabled = false;
+    } else {
+        kotak.className = "bg-rose-50 border-2 border-rose-200 p-3 rounded-xl mb-4 text-center transition-colors duration-300 shadow-sm shrink-0";
+        teks.className = "text-xl font-black text-rose-600 transition-colors duration-300";
+        label.innerText = "Kapasitas Terpilih (Kekurangan Kursi)";
+        label.className = "text-[10px] font-black uppercase tracking-widest block mb-1 text-rose-500";
+        btnLanjut.classList.add('opacity-50', 'cursor-not-allowed');
+        btnLanjut.disabled = true;
+    }
+};
+
 
 // INITIALIZE APP
 initApp();
