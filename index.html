@@ -88,6 +88,7 @@
     <nav class="bg-white border-b border-slate-200 px-2 sm:px-4 flex space-x-1 sm:space-x-2 overflow-x-auto no-scrollbar shrink-0 text-[9px] sm:text-[10px] uppercase font-black tracking-wider text-slate-500 z-20 shadow-sm">
         <button id="tab-kasir" onclick="switchTab('kasir')" class="tab-btn hidden px-3 py-3 sm:px-4 sm:py-4 border-b-2 border-transparent hover:text-amber-600 flex items-center space-x-1.5 sm:space-x-2 whitespace-nowrap transition"><i class="fas fa-cash-register text-sm"></i><span>Kasir</span></button>
         <button id="tab-notatersimpan" onclick="switchTab('notatersimpan')" class="tab-btn hidden px-3 py-3 sm:px-4 sm:py-4 border-b-2 border-transparent hover:text-amber-600 flex items-center space-x-1.5 sm:space-x-2 whitespace-nowrap transition"><i class="fas fa-clock-rotate-left text-sm"></i><span>Nota Tersimpan</span><span id="badgeSavedBills" class="hidden bg-rose-500 text-white px-1.5 py-0.5 rounded-md text-[8px]">0</span></button>
+        <button id="tab-reservasi" onclick="switchTab('reservasi')" class="tab-btn hidden px-3 py-3 sm:px-4 sm:py-4 border-b-2 border-transparent hover:text-amber-600 flex items-center space-x-1.5 sm:space-x-2 whitespace-nowrap transition"><i class="fas fa-calendar-check text-sm"></i><span>Reservasi</span></button>
         <button id="tab-laporan" onclick="switchTab('laporan')" class="tab-btn hidden px-3 py-3 sm:px-4 sm:py-4 border-b-2 border-transparent hover:text-amber-600 flex items-center space-x-1.5 sm:space-x-2 whitespace-nowrap transition"><i class="fas fa-file-invoice-dollar text-sm"></i><span>Laporan Nota</span></button>
         <button id="tab-pengeluaran" onclick="switchTab('pengeluaran')" class="tab-btn hidden px-3 py-3 sm:px-4 sm:py-4 border-b-2 border-transparent hover:text-amber-600 flex items-center space-x-1.5 sm:space-x-2 whitespace-nowrap transition"><i class="fas fa-wallet text-sm"></i><span>Pengeluaran</span></button>
         <button id="tab-tutupbuku" onclick="switchTab('tutupbuku')" class="tab-btn hidden px-3 py-3 sm:px-4 sm:py-4 border-b-2 border-transparent hover:text-amber-600 flex items-center space-x-1.5 sm:space-x-2 whitespace-nowrap transition"><i class="fas fa-lock text-sm"></i><span>Tutup Buku</span></button>
@@ -227,6 +228,23 @@
                 </div>
                 <div class="bg-gradient-to-r from-amber-500 to-orange-500 rounded-3xl shadow-md p-1"><div class="bg-white rounded-[22px] p-5 h-full"><h4 class="text-sm font-black text-slate-800 mb-4 flex items-center space-x-2"><i class="fas fa-trophy text-amber-500"></i><span>Top 5 Menu Terlaris</span></h4><div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-3" id="top5MenuCards"></div></div></div>
                 <div class="bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden"><div class="p-5 border-b border-slate-100 bg-slate-50 flex items-center"><i class="fas fa-table-list text-slate-400 mr-2"></i><h4 class="text-sm font-black text-slate-700 uppercase tracking-widest">Data Penjualan Keseluruhan</h4></div><div class="overflow-x-auto"><table class="w-full text-left text-xs"><thead class="bg-white text-slate-400 text-[9px] uppercase tracking-widest font-black border-b border-slate-100"><tr><th class="p-4 pl-5">Nama Menu</th><th class="p-4 text-center w-32">Porsi Terjual</th><th class="p-4 text-right pr-6 w-48">Total Pendapatan (Rp)</th></tr></thead><tbody id="tblRekapMenuTab" class="divide-y divide-slate-50"></tbody></table></div></div>
+            </div>
+        </section>
+
+        <!-- VIEW: RESERVASI -->
+        <section id="view-reservasi" class="view-panel absolute inset-0 p-4 overflow-y-auto hidden">
+            <div class="max-w-6xl mx-auto space-y-4">
+                <div class="bg-white p-5 rounded-3xl shadow-sm border border-slate-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                    <div>
+                        <h3 class="text-lg font-black text-slate-800 flex items-center space-x-2"><i class="fas fa-book-open text-amber-500"></i><span>Sistem Reservasi</span></h3>
+                        <p class="text-[10px] font-bold text-slate-400 mt-1 uppercase tracking-widest">Jadwal & Denah Meja Pawon Nusantara</p>
+                    </div>
+                    <div class="flex space-x-2 w-full sm:w-auto">
+                        <input type="date" id="filterTglReservasi" onchange="renderReservasiUI()" class="bg-slate-50 border border-slate-200 text-slate-700 text-xs font-black uppercase tracking-wider rounded-xl px-4 py-3 outline-none shadow-sm flex-1 sm:flex-none cursor-pointer">
+                        <button onclick="bukaModalReservasiBaru()" class="px-5 py-3 bg-amber-500 hover:bg-amber-600 text-slate-900 font-black uppercase tracking-widest text-xs rounded-xl shadow-md transition flex items-center justify-center space-x-2"><i class="fas fa-plus"></i><span class="hidden sm:inline">Buat Reservasi</span></button>
+                    </div>
+                </div>
+                <div id="reservasiContainer" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 content-start"></div>
             </div>
         </section>
 
@@ -371,6 +389,94 @@
 
     <!-- Modal Diskon -->
     <div id="modalDiskon" class="fixed inset-0 bg-slate-900/80 z-[70] hidden flex items-center justify-center p-4 backdrop-blur-sm"><div class="bg-white rounded-3xl max-w-xs w-full p-6 shadow-2xl animate-fade-in relative overflow-hidden text-center"><div class="absolute top-0 left-0 w-full h-2 bg-rose-500"></div><div class="w-12 h-12 bg-rose-50 text-rose-500 rounded-full flex items-center justify-center text-xl mb-4 mx-auto border border-rose-100"><i class="fas fa-tags"></i></div><h3 class="text-base font-black mb-1 uppercase tracking-widest text-slate-800">Terapkan Diskon</h3><div class="flex bg-slate-100 p-1 rounded-xl mb-4"><button id="btnDiscPercent" onclick="setDiscountType('%')" class="flex-1 py-2 rounded-lg text-xs font-black bg-white shadow-sm text-rose-600 transition">Persen (%)</button><button id="btnDiscNominal" onclick="setDiscountType('Rp')" class="flex-1 py-2 rounded-lg text-xs font-black text-slate-500 hover:text-slate-700 transition">Rupiah (Rp)</button></div><input type="text" inputmode="numeric" oninput="formatNumberInput(this)" id="inputDiscountVal" placeholder="0" class="w-full px-4 py-3 bg-slate-50 border-2 border-slate-200 rounded-xl text-lg font-black text-slate-800 text-center mb-5 outline-none focus:border-rose-400 transition"><div class="flex space-x-2"><button onclick="closeDiscountModal()" class="flex-1 py-3 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold text-xs rounded-xl transition">Batal</button><button onclick="applyDiscount()" class="flex-1 py-3 bg-rose-500 hover:bg-rose-600 text-white font-black uppercase tracking-widest text-xs rounded-xl shadow-md transition">Terapkan</button></div></div></div>
+
+    <!-- Modal Reservasi (Tahap 1 & 2) -->
+    <div id="modalReservasi" class="fixed inset-0 bg-slate-900/80 z-[80] hidden flex items-center justify-center p-4 backdrop-blur-sm">
+        <div class="bg-white rounded-3xl max-w-lg w-full shadow-2xl animate-fade-in flex flex-col max-h-[90vh] overflow-hidden border border-slate-200">
+            <div class="bg-slate-900 p-4 flex justify-between items-center shrink-0">
+                <h3 class="text-sm font-black text-amber-400 uppercase tracking-widest flex items-center"><i class="fas fa-calendar-alt mr-2 text-lg"></i>Form Reservasi</h3>
+                <button onclick="closeModalReservasi()" class="text-slate-400 hover:text-rose-500 transition w-8 h-8 rounded-full hover:bg-slate-800 flex items-center justify-center"><i class="fas fa-times text-xl"></i></button>
+            </div>
+            
+            <div class="flex border-b border-slate-200 bg-slate-50 shrink-0 p-2 space-x-1 overflow-x-auto no-scrollbar">
+                <button id="btnTabResData" onclick="switchTabReservasi('data')" class="flex-1 py-2.5 px-3 rounded-lg text-[9px] sm:text-[10px] font-black uppercase tracking-widest transition whitespace-nowrap bg-white text-amber-600 shadow-sm border border-slate-200">1. Data Tamu</button>
+                <button id="btnTabResMeja" onclick="switchTabReservasi('meja')" class="flex-1 py-2.5 px-3 rounded-lg text-[9px] sm:text-[10px] font-black uppercase tracking-widest transition whitespace-nowrap text-slate-400 opacity-50 cursor-not-allowed border border-transparent" disabled>2. Pilih Meja</button>
+                <button id="btnTabResBayar" onclick="switchTabReservasi('bayar')" class="flex-1 py-2.5 px-3 rounded-lg text-[9px] sm:text-[10px] font-black uppercase tracking-widest transition whitespace-nowrap text-slate-400 opacity-50 cursor-not-allowed border border-transparent" disabled>3. Menu & DP</button>
+            </div>
+
+            <div class="p-5 overflow-y-auto flex-1 custom-scrollbar text-xs bg-slate-50/50">
+                
+                <!-- TAB 1: DATA TAMU -->
+                <div id="tabResData" class="space-y-4">
+                    <div><label class="block mb-1 text-[10px] uppercase tracking-widest font-black text-slate-500 pl-1">Nama Pelanggan / Instansi <span class="text-rose-500">*</span></label><input type="text" id="resNama" placeholder="Cth: Bpk. Budi" class="w-full px-4 py-3.5 bg-white border border-slate-200 rounded-xl outline-none focus:border-amber-400 font-bold text-slate-800 shadow-sm transition"></div>
+                    <div><label class="block mb-1 text-[10px] uppercase tracking-widest font-black text-slate-500 pl-1">No. WhatsApp / HP</label><input type="text" inputmode="numeric" id="resKontak" placeholder="0812..." class="w-full px-4 py-3.5 bg-white border border-slate-200 rounded-xl outline-none focus:border-amber-400 font-bold text-slate-800 shadow-sm transition"></div>
+                    <div class="grid grid-cols-2 gap-3">
+                        <div><label class="block mb-1 text-[10px] uppercase tracking-widest font-black text-slate-500 pl-1">Tgl Kehadiran <span class="text-rose-500">*</span></label><input type="date" id="resTgl" class="w-full px-4 py-3.5 bg-white border border-slate-200 rounded-xl outline-none focus:border-amber-400 font-black text-amber-600 shadow-sm transition cursor-pointer"></div>
+                        <div><label class="block mb-1 text-[10px] uppercase tracking-widest font-black text-slate-500 pl-1">Jam Datang <span class="text-rose-500">*</span></label><input type="time" id="resJam" class="w-full px-4 py-3.5 bg-white border border-slate-200 rounded-xl outline-none focus:border-amber-400 font-black text-amber-600 shadow-sm transition cursor-pointer"></div>
+                    </div>
+                    <div class="pt-2">
+                        <label class="block mb-2 text-[10px] uppercase tracking-widest font-black text-amber-700 bg-amber-100 p-2 rounded-lg text-center border border-amber-200">Jumlah Orang / Kapasitas <span class="text-rose-500">*</span></label>
+                        <input type="number" id="resJmlOrang" placeholder="0" class="w-full px-4 py-4 bg-white border-2 border-amber-300 rounded-xl outline-none focus:border-amber-500 font-black text-amber-800 text-2xl transition text-center shadow-inner">
+                    </div>
+                    <div class="mt-6 pt-4 border-t border-slate-200"><button onclick="validasiDataTamuLanjut()" class="w-full py-4 bg-slate-900 hover:bg-slate-800 text-amber-400 font-black uppercase tracking-widest text-xs rounded-xl shadow-xl transition flex items-center justify-center space-x-2 transform hover:-translate-y-1"><span>Lanjut Pilih Meja</span><i class="fas fa-arrow-right ml-1"></i></button></div>
+                </div>
+
+                <!-- TAB 2: PILIH MEJA -->
+                <div id="tabResMeja" class="hidden flex flex-col h-full min-h-[350px]">
+                    <div id="resIndikatorKapasitas" class="bg-rose-50 border border-rose-200 p-3 rounded-xl mb-4 text-center transition-colors duration-300 shadow-sm shrink-0">
+                        <span class="text-[10px] font-black uppercase tracking-widest block mb-1 text-slate-500">Kapasitas Terpilih</span>
+                        <div class="text-xl font-black text-rose-600 transition-colors duration-300"><span id="resJmlKursiTerpilih">0</span> <span class="text-xs text-slate-400">/ <span id="resTargetKursi">0</span> Kursi</span></div>
+                    </div>
+                    
+                    <div class="flex space-x-2 mb-3 overflow-x-auto no-scrollbar shrink-0 pb-1 border-b border-slate-200">
+                        <button onclick="renderGridMeja('Outdoor')" id="btnArea-Outdoor" class="px-4 py-2 bg-slate-800 text-amber-400 font-black text-[9px] sm:text-[10px] uppercase tracking-widest rounded-lg whitespace-nowrap shadow-md">Outdoor</button>
+                        <button onclick="renderGridMeja('Indoor')" id="btnArea-Indoor" class="px-4 py-2 bg-white text-slate-500 hover:bg-slate-100 border border-slate-200 font-black text-[9px] sm:text-[10px] uppercase tracking-widest rounded-lg whitespace-nowrap shadow-sm">Indoor</button>
+                        <button onclick="renderGridMeja('Lesehan')" id="btnArea-Lesehan" class="px-4 py-2 bg-white text-slate-500 hover:bg-slate-100 border border-slate-200 font-black text-[9px] sm:text-[10px] uppercase tracking-widest rounded-lg whitespace-nowrap shadow-sm">Lesehan</button>
+                        <button onclick="renderGridMeja('Lantai 2')" id="btnArea-Lantai 2" class="px-4 py-2 bg-white text-slate-500 hover:bg-slate-100 border border-slate-200 font-black text-[9px] sm:text-[10px] uppercase tracking-widest rounded-lg whitespace-nowrap shadow-sm">Lantai 2</button>
+                    </div>
+                    
+                    <div id="gridMejaContainer" class="grid grid-cols-3 sm:grid-cols-4 gap-2.5 flex-1 content-start overflow-y-auto pr-1 pb-4"></div>
+                    
+                    <div class="mt-auto pt-4 border-t border-slate-200 shrink-0"><button onclick="switchTabReservasi('bayar')" class="w-full py-4 bg-amber-500 hover:bg-amber-600 text-slate-900 font-black uppercase tracking-widest text-xs rounded-xl shadow-xl transition transform hover:-translate-y-1">Lanjut ke Menu & DP <i class="fas fa-arrow-right ml-1"></i></button></div>
+                </div>
+
+                <!-- TAB 3: MENU & DP -->
+                <div id="tabResBayar" class="hidden flex flex-col h-full space-y-4 pt-2">
+                    <div class="bg-blue-50 border border-blue-200 p-4 rounded-xl flex items-center space-x-3 shadow-sm">
+                        <i class="fas fa-info-circle text-blue-500 text-2xl"></i>
+                        <p class="text-[10px] font-bold text-blue-700 leading-relaxed">Uang DP akan langsung masuk ke <span class="font-black">Laporan Transaksi & Tutup Buku</span> hari ini. Menu pesanan bisa ditambahkan nanti melalui fitur Nota Tersimpan.</p>
+                    </div>
+
+                    <div>
+                        <label class="block mb-1 text-[10px] uppercase tracking-widest font-black text-slate-500 pl-1">Nominal DP / Uang Muka (Rp)</label>
+                        <div class="relative">
+                            <span class="absolute left-4 top-3.5 text-sm font-black text-amber-500">Rp</span>
+                            <input type="text" inputmode="numeric" id="resDpNominal" oninput="formatNumberInput(this)" placeholder="0 (Kosongkan jika tanpa DP)" class="w-full pl-11 pr-4 py-3.5 bg-white border border-slate-200 rounded-xl outline-none focus:border-amber-400 font-black text-slate-800 text-lg shadow-inner transition">
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="block mb-1 text-[10px] uppercase tracking-widest font-black text-slate-500 pl-1">Metode Bayar DP</label>
+                        <select id="resDpMetode" class="w-full px-4 py-3.5 bg-white border border-slate-200 rounded-xl outline-none focus:border-amber-400 font-black text-slate-700 shadow-sm transition cursor-pointer">
+                            <option value="CASH">CASH (TUNAI)</option>
+                            <option value="TRANSFER">TRANSFER (TF)</option>
+                        </select>
+                    </div>
+                    
+                    <div>
+                        <label class="block mb-1 text-[10px] uppercase tracking-widest font-black text-slate-500 pl-1">Catatan Tambahan (Opsional)</label>
+                        <input type="text" id="resCatatan" placeholder="Cth: Minta disiapkan jam 18:30 tepat" class="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl outline-none focus:border-amber-400 font-bold text-slate-700 shadow-sm transition">
+                    </div>
+
+                    <div class="mt-auto pt-4 border-t border-slate-200 flex space-x-2 shrink-0">
+                        <button onclick="switchTabReservasi('meja')" class="w-12 h-12 bg-slate-100 text-slate-500 hover:bg-slate-200 font-black text-sm rounded-xl transition flex items-center justify-center shrink-0"><i class="fas fa-arrow-left"></i></button>
+                        <button onclick="simpanReservasiAkhir()" class="flex-1 py-3.5 bg-amber-500 hover:bg-amber-600 text-slate-900 font-black uppercase tracking-widest text-xs rounded-xl shadow-xl transition transform hover:-translate-y-1"><i class="fas fa-save mr-2"></i>Simpan Reservasi</button>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
 
     <!-- Modal Simpan Nota (Tunda) -->
     <div id="modalParkBill" class="fixed inset-0 bg-slate-900/80 z-[70] hidden flex items-center justify-center p-4 backdrop-blur-sm"><div class="bg-white rounded-3xl max-w-xs w-full p-6 shadow-2xl animate-fade-in relative overflow-hidden text-center"><div class="absolute top-0 left-0 w-full h-2 bg-blue-500"></div><div class="w-12 h-12 bg-blue-50 text-blue-500 rounded-full flex items-center justify-center text-xl mb-4 mx-auto border border-blue-100"><i class="fas fa-clock-rotate-left"></i></div><h3 class="text-base font-black mb-1 uppercase tracking-widest text-slate-800">Simpan Nota</h3><div class="text-left mb-5 mt-4"><label class="font-black text-slate-400 uppercase tracking-widest block mb-1 text-[9px]">Nama Tanda Pengenal</label><input type="text" id="inputParkName" placeholder="Cth: Meja 5 / Budi" class="w-full px-4 py-3 bg-slate-50 border-2 border-slate-200 rounded-xl text-sm font-bold text-slate-800 outline-none focus:bg-white focus:border-blue-400 transition"></div><div class="flex space-x-2"><button onclick="closeParkModal()" class="flex-1 py-3 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold text-xs rounded-xl transition">Batal</button><button onclick="simpanNotaTunda()" class="flex-1 py-3 bg-blue-500 hover:bg-blue-600 text-white font-black uppercase tracking-widest text-xs rounded-xl shadow-md transition">Simpan</button></div></div></div>
