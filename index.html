@@ -497,20 +497,23 @@
 
                 <!-- TAB 3: MENU & DP -->
                 <div id="tabResBayar" class="hidden flex flex-col h-full space-y-4 pt-2">
-                    <div class="bg-blue-50 border border-blue-200 p-3 rounded-xl flex items-start space-x-3 shadow-sm">
+                    <input type="hidden" id="editResvId"> <!-- Memori Rahasia ID Edit -->
+                    <input type="hidden" id="editResvToken"> <!-- Memori Rahasia Token Edit -->
+                    
+                    <div class="bg-blue-50 border border-blue-200 p-3 rounded-xl flex items-start space-x-3 shadow-sm shrink-0">
                         <i class="fas fa-info-circle text-blue-500 mt-0.5"></i>
-                        <p class="text-[10px] font-bold text-blue-700 leading-relaxed">Centang <b>LUNAS</b> jika DP sudah dibayar. Uang akan otomatis masuk ke Laporan Kasir hari ini. Menu diisi nanti via Nota Tersimpan.</p>
+                        <p class="text-[10px] font-bold text-blue-700 leading-relaxed">Centang opsi <span class="font-black">LUNAS</span> jika uang telah diterima. DP baru akan masuk ke Laporan Transaksi setelah dicentang lunas.</p>
                     </div>
 
-                    <div>
-                        <label class="block mb-1 text-[10px] uppercase tracking-widest font-black text-slate-500 pl-1">Nominal DP / Uang Muka (Rp)</label>
-                        <div class="relative">
-                            <span class="absolute left-4 top-3.5 text-sm font-black text-amber-500">Rp</span>
-                            <input type="text" inputmode="numeric" id="resDpNominal" oninput="formatNumberInput(this)" placeholder="0 (Kosongkan jika tanpa DP)" class="w-full pl-11 pr-4 py-3.5 bg-white border border-slate-200 rounded-xl outline-none focus:border-amber-400 font-black text-slate-800 text-lg shadow-inner transition">
+                    <div class="overflow-y-auto flex-1 custom-scrollbar space-y-4 pr-1">
+                        <div>
+                            <label class="block mb-1 text-[10px] uppercase tracking-widest font-black text-slate-500 pl-1">Nominal DP / Uang Muka (Rp)</label>
+                            <div class="relative">
+                                <span class="absolute left-4 top-3.5 text-sm font-black text-amber-500">Rp</span>
+                                <input type="text" inputmode="numeric" id="resDpNominal" oninput="formatNumberInput(this)" placeholder="0 (Kosongkan jika tanpa DP)" class="w-full pl-11 pr-4 py-3.5 bg-white border border-slate-200 rounded-xl outline-none focus:border-amber-400 font-black text-slate-800 text-lg shadow-inner transition">
+                            </div>
                         </div>
-                    </div>
 
-                    <div class="grid grid-cols-2 gap-3">
                         <div>
                             <label class="block mb-1 text-[10px] uppercase tracking-widest font-black text-slate-500 pl-1">Metode Bayar DP</label>
                             <select id="resDpMetode" class="w-full px-4 py-3.5 bg-white border border-slate-200 rounded-xl outline-none focus:border-amber-400 font-black text-slate-700 shadow-sm transition cursor-pointer">
@@ -518,17 +521,29 @@
                                 <option value="TRANSFER">TRANSFER (TF)</option>
                             </select>
                         </div>
-                        <div class="flex flex-col justify-end">
-                            <label id="containerDpLunas" class="flex items-center space-x-2 bg-slate-50 border border-slate-200 p-3.5 rounded-xl cursor-pointer hover:bg-slate-100 transition shadow-sm">
-                                <input type="checkbox" id="resDpLunas" class="w-5 h-5 text-emerald-500 rounded border-slate-300 focus:ring-emerald-500">
-                                <span class="text-[10px] font-black uppercase tracking-widest text-slate-700">DP LUNAS DIBAYAR</span>
-                            </label>
+                        
+                        <!-- KOTAK CENTANG VALIDASI DP -->
+                        <div id="containerCentangDp" class="bg-emerald-50 border border-emerald-200 p-3.5 rounded-xl mt-2 flex items-center space-x-3 cursor-pointer hover:bg-emerald-100 transition shadow-sm" onclick="document.getElementById('resDpLunas').click()">
+                            <input type="checkbox" id="resDpLunas" class="w-5 h-5 text-emerald-600 rounded focus:ring-emerald-500 cursor-pointer pointer-events-none">
+                            <div>
+                                <span class="block text-[10px] font-black uppercase tracking-widest text-emerald-800 mb-0.5">DP TELAH LUNAS DIBAYAR</span>
+                                <span class="block text-[9px] font-bold text-emerald-600">Centang jika uang fisik/transfer sudah diterima kasir hari ini.</span>
+                            </div>
                         </div>
-                    </div>
-                    
-                    <div>
-                        <label class="block mb-1 text-[10px] uppercase tracking-widest font-black text-slate-500 pl-1">Catatan Tambahan (Opsional)</label>
-                        <input type="text" id="resCatatan" placeholder="Cth: Minta disiapkan jam 18:30 tepat" class="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl outline-none focus:border-amber-400 font-bold text-slate-700 shadow-sm transition">
+                        
+                        <!-- KOTAK TERKUNCI (Jika DP Sudah Masuk Laporan Sebelumnya) -->
+                        <div id="containerTerkunciDp" class="hidden bg-slate-100 border border-slate-200 p-3.5 rounded-xl mt-2 flex items-center space-x-3 shadow-inner">
+                            <i class="fas fa-lock text-slate-400 text-xl ml-1"></i>
+                            <div>
+                                <span class="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-0.5">DATA DP TERKUNCI</span>
+                                <span class="block text-[9px] font-bold text-slate-400">DP sudah lunas dan masuk ke Laporan Tutup Buku sebelumnya.</span>
+                            </div>
+                        </div>
+                        
+                        <div>
+                            <label class="block mb-1 text-[10px] uppercase tracking-widest font-black text-slate-500 pl-1">Catatan Tambahan (Opsional)</label>
+                            <input type="text" id="resCatatan" placeholder="Cth: Minta disiapkan jam 18:30 tepat" class="w-full px-4 py-3.5 bg-white border border-slate-200 rounded-xl outline-none focus:border-amber-400 font-bold text-slate-700 shadow-sm transition">
+                        </div>
                     </div>
 
                     <div class="mt-auto pt-4 border-t border-slate-200 flex space-x-2 shrink-0">
