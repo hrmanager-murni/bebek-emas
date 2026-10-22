@@ -143,9 +143,10 @@ window.kirimNotaWA = () => {
     text += `--------------------------------\n`;
     text += `Subtotal : Rp ${formatIDRPlain(p.subtotal)}\n`;
     if(p.diskonRp > 0) text += `Diskon   : - Rp ${formatIDRPlain(p.diskonRp)}\n`;
+    if(p.dpRp > 0) text += `DP (Lunas): - Rp ${formatIDRPlain(p.dpRp)}\n`;
     
-    let totalAkhir = p.totalBayar !== undefined ? p.totalBayar : (p.subtotal - p.diskonRp);
-    text += `*TOTAL    : Rp ${formatIDRPlain(totalAkhir)}*\n`;
+    let totalAkhir = p.total !== undefined ? p.total : (p.subtotal - p.diskonRp - (p.dpRp||0));
+    text += `*SISA BAYAR : Rp ${formatIDRPlain(totalAkhir)}*\n`;
     text += `Tipe Order: ${p.tipeOrder}\n`;
     
     if(p.pembayaran === 'MIX') {
@@ -197,9 +198,10 @@ window.printReceiptAction = async () => {
                     escpos.push(...enc.encode("-".repeat(32) + "\n"));
                     escpos.push(...enc.encode(`Subtotal: ${formatIDRPlain(p.subtotal)}\n`)); 
                     escpos.push(...enc.encode(`Diskon  : -${formatIDRPlain(p.diskonRp)}\n`));
+                    if (p.dpRp > 0) escpos.push(...enc.encode(`DP(Lunas): -${formatIDRPlain(p.dpRp)}\n`));
                     
-                    let totalCetak = p.totalBayar !== undefined ? p.totalBayar : (p.subtotal - p.diskonRp);
-                    escpos.push(...enc.encode(`TOTAL   : ${formatIDRPlain(totalCetak)}\n`)); 
+                    let totalCetak = p.total !== undefined ? p.total : (p.subtotal - p.diskonRp - (p.dpRp||0));
+                    escpos.push(...enc.encode(`TOTAL   : ${formatIDRPlain(totalCetak)}\n`));
                     escpos.push(...enc.encode(`Tipe    : ${p.tipeOrder}\n`));
                     
                     if(p.pembayaran === 'MIX') {
@@ -245,13 +247,20 @@ window.cetakStrukPreview = (payload) => {
     document.getElementById('strukDiskon').innerText = "- " + formatIDRPlain(payload.diskonRp);
     
     const gojekRow = document.getElementById('strukGojekRow');
-    // Selalu sembunyikan potongan app dari nota agar pelanggan tidak bingung
     gojekRow.classList.add('hidden');
+    
+    const dpRow = document.getElementById('strukDpRow');
+    if(payload.dpRp > 0) {
+        dpRow.classList.remove('hidden');
+        document.getElementById('strukDpVal').innerText = "- " + formatIDRPlain(payload.dpRp);
+    } else {
+        if(dpRow) dpRow.classList.add('hidden');
+    }
     
     document.getElementById('strukTipe').innerText = payload.tipeOrder;
     document.getElementById('strukMetode').innerText = payload.pembayaran;
     
-    let totalCetak = payload.totalBayar !== undefined ? payload.totalBayar : (payload.subtotal - payload.diskonRp);
+    let totalCetak = payload.total !== undefined ? payload.total : (payload.subtotal - payload.diskonRp - (payload.dpRp||0));
     document.getElementById('strukTotal').innerText = formatIDRPlain(totalCetak);
     
     document.getElementById('modalStruk').classList.remove('hidden');
@@ -499,23 +508,27 @@ window.bukaModalSimpanNota = () => {
     if(cart.length === 0) return showToast("Pesanan kosong!", "error"); 
     let cust = document.getElementById('cartCustomer').value; 
     let meja = document.getElementById('cartMeja').value; 
-    let autoName = document.getElementById('inputParkName').value; // Ambil nama yang tertinggal di memori jika ada
+    let autoName = document.getElementById('inputParkName').value; 
     
-    // Skala prioritas penamaan:
-    if(cust && meja) autoName = cust + " - " + meja; 
-    else if (cust && !autoName.includes(cust)) autoName = cust; 
-    else if (meja && !autoName.includes(meja)) autoName = "Meja " + meja;
-    // Jika semua kosong, autoName akan tetap pakai nama sebelumnya (contoh: "Ibu Baju Merah")
+    // KUNCI RESERVASI: Jika nama sudah punya tag [RESERVASI], JANGAN diubah!
+    if(autoName.includes("[RESERVASI]")) {
+        // Biarkan nama asli reservasi apa adanya
+    } else {
+        if(cust && meja) autoName = cust + " - " + meja; 
+        else if (cust && !autoName.includes(cust)) autoName = cust; 
+        else if (meja && !autoName.includes(meja)) autoName = "Meja " + meja;
+    }
     
     document.getElementById('inputParkName').value = autoName; 
     document.getElementById('modalParkBill').classList.remove('hidden'); 
 };
-
 window.closeParkModal = () => document.getElementById('modalParkBill').classList.add('hidden');
 window.simpanNotaTunda = async () => {
     const name = document.getElementById('inputParkName').value || 'Tanpa Nama'; 
     if(!auth.currentUser) return; 
     showLoading("Menyimpan...");
+    
+    let isResv = name.includes("[RESERVASI]");
     
     await addDoc(getColRef('saved_bills'), { 
         waktu: getTimestampStr(), 
@@ -526,7 +539,10 @@ window.simpanNotaTunda = async () => {
         meja: document.getElementById('cartMeja').value || '-', 
         cart: cart, 
         tipeOrder: tipeOrder, 
-        discountInfo: discountInfo 
+        discountInfo: discountInfo,
+        isReservasi: isResv,
+        dpTelahDibayar: window.tempDpReservasi || 0,
+        tokenRes: window.tempTokenReservasi || null
     });
     
     hideLoading(); 
@@ -545,7 +561,6 @@ window.renderSavedBillsUI = () => {
         let itemsPreview = sb.cart.map(c=>c.nama).slice(0,2).join(', '); 
         if(sb.cart.length > 2) itemsPreview += ` (+${sb.cart.length-2} item)`;
         
-        // Hitung total nilai nota tunda
         let totalNilai = 0;
         sb.cart.forEach(c => {
             let hrg = sb.tipeOrder === 'DineIn' ? c.hargaDineIn : c.hargaGojek;
@@ -555,15 +570,18 @@ window.renderSavedBillsUI = () => {
         let grandTotal = totalNilai - diskonAmt;
         if(sb.tipeOrder === 'Gojek') { const g = getGojekFee(grandTotal); grandTotal = g.finalTotal; }
         
-        // Logika Tombol Dinamis: Buka Nota VS Gabung Nota
         let actionBtn = '';
         if (cart.length === 0) {
-            actionBtn = `<button onclick="bukaSavedBill('${sb.id}')" class="flex-1 py-2.5 bg-slate-900 hover:bg-amber-50 text-white hover:text-slate-900 font-black text-xs uppercase tracking-widest rounded-xl transition shadow-sm border border-slate-800">Buka Nota</button>`;
+            actionBtn = `<button onclick="bukaSavedBill('${sb.id}')" class="flex-1 py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-black text-xs uppercase tracking-widest rounded-xl transition shadow-sm border border-slate-800">Buka Nota</button>`;
         } else {
             actionBtn = `<button onclick="bukaSavedBill('${sb.id}', true)" class="flex-1 py-2.5 bg-amber-500 hover:bg-amber-600 text-slate-900 font-black text-[10px] uppercase tracking-widest rounded-xl transition shadow-sm flex items-center justify-center leading-tight"><i class="fas fa-link mr-1"></i>Gabung Ke Kasir</button>`;
         }
 
-        container.innerHTML += `<div class="bg-white p-5 rounded-3xl shadow-sm border border-slate-200 flex flex-col justify-between group hover:border-amber-400 transition"><div><div class="flex justify-between items-start mb-2"><span class="px-2.5 py-1 bg-amber-100 text-amber-700 text-[9px] font-black uppercase tracking-widest rounded-lg">${sb.waktu.substring(11,16)}</span><span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">${sb.tipeOrder}</span></div><h4 class="text-sm font-black text-slate-800 mb-1 leading-tight">${sb.namaTunda}</h4><p class="text-[10px] text-slate-500 font-medium mb-2">${itemsPreview}</p><div class="inline-block bg-slate-50 px-2 py-1 rounded border border-slate-100"><span class="text-[9px] font-bold text-slate-400 uppercase tracking-widest block">Total Estimasi</span><span class="text-xs font-black text-slate-700">${formatIDR(grandTotal)}</span></div></div><div class="flex space-x-2 mt-4 pt-4 border-t border-slate-100">${actionBtn}<button onclick="hapusSavedBill('${sb.id}')" class="w-10 h-10 bg-rose-50 text-rose-500 hover:bg-rose-500 hover:text-white rounded-xl transition flex items-center justify-center border border-rose-100"><i class="fas fa-trash-alt"></i></button></div></div>`;
+        // LOGIKA TAMPILAN KHUSUS RESERVASI (Garis Biru)
+        let borderClass = sb.isReservasi ? 'border-2 border-slate-200 border-l-[6px] border-l-blue-500 shadow-md bg-blue-50/10' : 'border border-slate-200 bg-white shadow-sm';
+        let tagWaktu = sb.isReservasi ? `<span class="px-2.5 py-1 bg-blue-100 text-blue-700 text-[9px] font-black uppercase tracking-widest rounded-lg border border-blue-200"><i class="fas fa-calendar-check mr-1"></i>RESERVASI</span>` : `<span class="px-2.5 py-1 bg-amber-100 text-amber-700 text-[9px] font-black uppercase tracking-widest rounded-lg">${sb.waktu.substring(11,16)}</span>`;
+
+        container.innerHTML += `<div class="p-5 rounded-3xl ${borderClass} flex flex-col justify-between group hover:border-amber-400 transition"><div><div class="flex justify-between items-start mb-2">${tagWaktu}<span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">${sb.tipeOrder}</span></div><h4 class="text-sm font-black text-slate-800 mb-1 leading-tight">${sb.namaTunda}</h4><p class="text-[10px] text-slate-500 font-medium mb-2">${itemsPreview || 'Belum ada menu diinput.'}</p><div class="inline-block bg-slate-50 px-2 py-1 rounded border border-slate-100"><span class="text-[9px] font-bold text-slate-400 uppercase tracking-widest block">Total Estimasi</span><span class="text-xs font-black text-slate-700">${formatIDR(grandTotal)}</span></div></div><div class="flex space-x-2 mt-4 pt-4 border-t border-slate-100">${actionBtn}<button onclick="hapusSavedBill('${sb.id}')" class="w-10 h-10 bg-rose-50 text-rose-500 hover:bg-rose-500 hover:text-white rounded-xl transition flex items-center justify-center border border-rose-100"><i class="fas fa-trash-alt"></i></button></div></div>`;
     });
 };
 
@@ -589,8 +607,10 @@ window.bukaSavedBill = async (id, forceMerge = false) => {
                 discountInfo = sb.discountInfo || { type: '%', value: 0, amount: 0 }; 
                 document.getElementById('cartCustomer').value = sb.customer !== 'Umum' ? sb.customer : ''; 
                 document.getElementById('cartMeja').value = sb.meja !== '-' ? sb.meja : ''; 
-                document.getElementById('inputParkName').value = sb.namaTunda; // Mempertahankan nama asli nota
-                setTipeOrder(sb.tipeOrder || 'DineIn'); // Memaksa tombol UI di layar agar ikut berubah sesuai jenis nota
+                document.getElementById('inputParkName').value = sb.namaTunda;
+                window.tempDpReservasi = sb.dpTelahDibayar || 0;
+                window.tempTokenReservasi = sb.tokenRes || null;
+                setTipeOrder(sb.tipeOrder || 'DineIn');
             }
             
             await deleteDoc(getDocRef('saved_bills', id)); 
@@ -708,6 +728,8 @@ window.clearCart = () => {
     document.getElementById('cartMeja').value = ''; 
     document.getElementById('inputParkName').value = ''; // Reset nama tunda sebelumnya
     discountInfo = { type: '%', value: 0, amount: 0 }; 
+    window.tempDpReservasi = 0;
+    window.tempTokenReservasi = null;
     setTipeOrder('DineIn'); // Reset otomatis ke Dine In & menyegarkan keranjang
 };
 
@@ -740,8 +762,23 @@ window.renderCart = () => {
         finalTotal = gojekInfo.finalTotal; 
     }
 
+    // LOGIKA PENGURANG DP
+    let dpDipakai = window.tempDpReservasi || 0;
+    if (dpDipakai > finalTotal) dpDipakai = finalTotal; // Mencegah minus
+    finalTotal = finalTotal - dpDipakai;
+
     document.getElementById('cartDiscountText').innerText = `- ${formatIDR(discountInfo.amount)}`; 
     document.getElementById('cartTotalText').innerText = formatIDR(finalTotal);
+    
+    const dpContainer = document.getElementById('cartDpContainer');
+    if (dpContainer) {
+        if (dpDipakai > 0) {
+            dpContainer.classList.remove('hidden');
+            document.getElementById('cartDpText').innerText = "- " + formatIDR(dpDipakai);
+        } else {
+            dpContainer.classList.add('hidden');
+        }
+    }
 };
 
 // PISAH NOTA (SPLIT BILL BY ITEM)
@@ -850,7 +887,12 @@ window.bukaMixPay = () => {
         const g = getGojekFee(totalAfterDisc); 
         totalAfterDisc = g.finalTotal; 
     }
-    document.getElementById('mixTotalTagihan').innerText = formatIDR(totalAfterDisc); 
+    
+    let dpDipakai = window.tempDpReservasi || 0;
+    if (dpDipakai > totalAfterDisc) dpDipakai = totalAfterDisc;
+    let tagihanAkhir = totalAfterDisc - dpDipakai;
+
+    document.getElementById('mixTotalTagihan').innerText = formatIDR(tagihanAkhir); 
     document.getElementById('mixInputCash').value = ''; 
     document.getElementById('mixInputTf').value = ''; 
     document.getElementById('modalMixPay').classList.remove('hidden');
@@ -863,14 +905,18 @@ window.hitungMix = (sumber) => {
         totalAfterDisc = g.finalTotal; 
     }
     
+    let dpDipakai = window.tempDpReservasi || 0;
+    if (dpDipakai > totalAfterDisc) dpDipakai = totalAfterDisc;
+    let tagihanAkhir = totalAfterDisc - dpDipakai;
+    
     if (sumber === 'CASH') {
         let cashPay = getCleanNumber(document.getElementById('mixInputCash').value);
-        let sisaTf = totalAfterDisc - cashPay;
+        let sisaTf = tagihanAkhir - cashPay;
         if(sisaTf < 0) sisaTf = 0;
         document.getElementById('mixInputTf').value = sisaTf > 0 ? sisaTf.toLocaleString('id-ID') : '';
     } else if (sumber === 'TF') {
         let tfPay = getCleanNumber(document.getElementById('mixInputTf').value);
-        let sisaCash = totalAfterDisc - tfPay;
+        let sisaCash = tagihanAkhir - tfPay;
         if(sisaCash < 0) sisaCash = 0;
         document.getElementById('mixInputCash').value = sisaCash > 0 ? sisaCash.toLocaleString('id-ID') : '';
     }
@@ -885,7 +931,11 @@ window.prosesMixPay = () => {
         totalAfterDisc = g.finalTotal; 
     }
     
-    if (cashPay + tfPay < totalAfterDisc) return showToast("Nominal belum mencukupi tagihan!", "error"); 
+    let dpDipakai = window.tempDpReservasi || 0;
+    if (dpDipakai > totalAfterDisc) dpDipakai = totalAfterDisc;
+    let tagihanAkhir = totalAfterDisc - dpDipakai;
+    
+    if (cashPay + tfPay < tagihanAkhir) return showToast("Nominal belum mencukupi tagihan!", "error"); 
     if (cashPay <= 0 || tfPay <= 0) return showToast("Isi kedua nominal Mix Pay!", "error"); 
     
     document.getElementById('modalMixPay').classList.add('hidden'); 
@@ -897,7 +947,7 @@ window.prosesBayar = async (metode, mixCash = 0, mixTf = 0) => {
     if (!auth.currentUser) return showToast("Sistem offline.", "error"); 
     if (cart.length === 0) return showToast('Keranjang kosong!', 'error'); 
     
-    showLoading("Menyimpan...");
+    showLoading("Memproses Transaksi...");
     
     let totalAfterDisc = subtotalCart - discountInfo.amount; 
     let finalNetTotal = totalAfterDisc; 
@@ -908,6 +958,11 @@ window.prosesBayar = async (metode, mixCash = 0, mixTf = 0) => {
         finalNetTotal = g.finalTotal; 
         gojekFee = g.fee; 
     }
+
+    // HITUNG SISA WAJIB BAYAR SETELAH DP
+    let dpDipakai = window.tempDpReservasi || 0;
+    if (dpDipakai > finalNetTotal) dpDipakai = finalNetTotal;
+    let sisaWajibBayar = finalNetTotal - dpDipakai;
     
     const dateStr = getTodayYMD(); 
     const todayTrx = transactionsDB.filter(t => t.tanggal === dateStr); 
@@ -920,10 +975,11 @@ window.prosesBayar = async (metode, mixCash = 0, mixTf = 0) => {
         kasir: (currentUser.nama === 'Manager Executive' ? 'Manager (Bantuan Kasir)' : currentUser.nama), 
         tipeOrder: tipeOrder, 
         pembayaran: metode, 
-        total: finalNetTotal, 
-        totalBayar: totalAfterDisc, 
+        total: sisaWajibBayar, // HANYA MEMASUKKAN UANG BARU YANG DITERIMA HARI INI KE LAPORAN
+        totalBayar: finalNetTotal, 
         subtotal: subtotalCart, 
-        diskonRp: discountInfo.amount, 
+        diskonRp: discountInfo.amount,
+        dpRp: dpDipakai, 
         gojekFee: gojekFee, 
         cart: cart, 
         customer: document.getElementById('cartCustomer').value || 'Umum', 
@@ -940,6 +996,15 @@ window.prosesBayar = async (metode, mixCash = 0, mixTf = 0) => {
 
     try {
         await addDoc(getColRef('transactions'), payload); 
+        
+        // AUTO-SELESAI TOKEN RESERVASI
+        if (window.tempTokenReservasi) {
+            const resvToFinish = reservationsDB.find(r => r.idToken === window.tempTokenReservasi);
+            if (resvToFinish) {
+                await setDoc(getDocRef('reservations', resvToFinish.id), { status: 'Selesai', pelunasanWaktu: getTimestampStr() }, { merge: true });
+            }
+        }
+
         let itemsTerjual = {}; 
         cart.forEach(c => { 
             let cleanName = c.nama.split(' (Dr:')[0].trim().toLowerCase();
@@ -1023,9 +1088,15 @@ window.simpanEditNota = async () => {
         finalNetTotal = g.finalTotal; 
         gojekFee = g.fee; 
     }
+
+    // CEGAT EDIT AGAR DP TIDAK RUSAK
+    let dpDipakai = originalTrxData.dpRp || 0;
+    if (dpDipakai > finalNetTotal) dpDipakai = finalNetTotal;
+    let sisaWajibBayar = finalNetTotal - dpDipakai;
     
     const payload = { 
-        total: finalNetTotal, 
+        total: sisaWajibBayar,
+        dpRp: dpDipakai, 
         totalBayar: totalAfterDisc, 
         subtotal: subtotalCart, 
         diskonRp: discountInfo.amount, 
@@ -2695,20 +2766,55 @@ let targetKursi = 0;
 let totalKursiTerpilih = 0;
 let aktifAreaMeja = 'Outdoor';
 
+let viewReservasiMode = 'aktif';
+
+window.switchMainTabReservasi = (mode) => {
+    viewReservasiMode = mode;
+    const btnAktif = document.getElementById('btnTabResvAktif');
+    const btnRiwayat = document.getElementById('btnTabResvRiwayat');
+    const btnBuat = document.getElementById('btnBuatResvUtama');
+    
+    if(mode === 'aktif') {
+        btnAktif.className = "px-4 py-2 bg-white text-amber-600 shadow-sm rounded-lg font-black text-[10px] uppercase tracking-widest transition";
+        btnRiwayat.className = "px-4 py-2 text-slate-500 hover:text-slate-700 rounded-lg font-black text-[10px] uppercase tracking-widest transition";
+        document.getElementById('labelTipeResv').innerText = "Aktif";
+        btnBuat.classList.remove('hidden');
+    } else {
+        btnRiwayat.className = "px-4 py-2 bg-white text-blue-600 shadow-sm rounded-lg font-black text-[10px] uppercase tracking-widest transition";
+        btnAktif.className = "px-4 py-2 text-slate-500 hover:text-slate-700 rounded-lg font-black text-[10px] uppercase tracking-widest transition";
+        document.getElementById('labelTipeResv').innerText = "Riwayat";
+        btnBuat.classList.add('hidden');
+    }
+    renderReservasiUI();
+};
+
+window.resetFilterReservasi = () => {
+    document.getElementById('filterTglReservasi').value = '';
+    renderReservasiUI();
+};
+
 window.renderReservasiUI = () => {
     let tgl = document.getElementById('filterTglReservasi').value;
-    if (!tgl) { 
-        document.getElementById('filterTglReservasi').value = getTodayYMD(); 
-        tgl = getTodayYMD(); 
-    }
-    
     const container = document.getElementById('reservasiContainer');
     if(!container) return;
     container.innerHTML = '';
     
-    let filtered = reservationsDB.filter(r => r.tanggalRes === tgl);
+    let filtered = reservationsDB;
+    
+    // Filter berdasarkan Tanggal (Kalau diisi)
+    if (tgl) { filtered = filtered.filter(r => r.tanggalRes === tgl); }
+    
+    // Filter berdasarkan Tab Mode
+    if (viewReservasiMode === 'aktif') {
+        filtered = filtered.filter(r => r.status === 'Aktif');
+    } else {
+        filtered = filtered.filter(r => r.status === 'Selesai' || r.status === 'Batal');
+    }
+    
+    document.getElementById('resvTotalIndikator').innerText = filtered.length;
+    
     if(filtered.length === 0) {
-        container.innerHTML = `<div class="col-span-full p-8 text-center text-slate-400 font-bold bg-white border border-slate-200 border-dashed rounded-3xl"><i class="fas fa-calendar-xmark text-5xl mb-3 opacity-30 block"></i>Belum ada jadwal reservasi di tanggal ini.</div>`;
+        container.innerHTML = `<div class="col-span-full p-8 text-center text-slate-400 font-bold bg-white border border-slate-200 border-dashed rounded-3xl"><i class="fas ${viewReservasiMode === 'aktif' ? 'fa-calendar-xmark' : 'fa-history'} text-5xl mb-3 opacity-30 block"></i>Tidak ada data ${viewReservasiMode} ${tgl ? 'di tanggal ini' : ''}.</div>`;
         return;
     }
     
@@ -2716,8 +2822,33 @@ window.renderReservasiUI = () => {
         let dpBadge = r.dp > 0 ? `<span class="bg-emerald-100 text-emerald-700 px-2 py-1 rounded text-[9px] font-black uppercase tracking-widest border border-emerald-200">DP: ${formatIDR(r.dp)}</span>` : `<span class="bg-slate-100 text-slate-500 px-2 py-1 rounded text-[9px] font-black uppercase tracking-widest border border-slate-200">TANPA DP</span>`;
         let catText = r.catatan ? `<p class="text-[10px] text-slate-500 font-bold mt-2 bg-slate-50 p-2 rounded-lg border border-slate-100"><i class="fas fa-quote-left text-slate-300 mr-1"></i>${r.catatan}</p>` : '';
         
+        let tglText = tgl ? '' : `<span class="text-[9px] font-black text-amber-600 bg-amber-50 px-2 py-1 rounded border border-amber-100 mb-2 inline-block"><i class="fas fa-calendar-day mr-1"></i>${r.tanggalRes.split('-').reverse().join('/')}</span>`;
+        
+        let aksiHtml = '';
+        if(viewReservasiMode === 'aktif') {
+            aksiHtml = `<div class="flex space-x-2 mt-4 pt-4 border-t border-slate-100">
+                <button onclick="editReservasi('${r.id}')" class="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-600 font-black text-[10px] uppercase tracking-widest rounded-xl transition shadow-sm border border-slate-200 flex items-center justify-center"><i class="fas fa-edit mr-1.5"></i>Edit</button>
+                <button onclick="window.switchTab('notatersimpan')" class="flex-1 py-2.5 bg-slate-900 hover:bg-slate-800 text-amber-400 font-black text-[10px] uppercase tracking-widest rounded-xl transition shadow-md flex items-center justify-center"><i class="fas fa-utensils mr-1.5"></i>Isi Menu</button>
+                <button onclick="hapusReservasi('${r.id}')" class="w-10 h-10 bg-rose-50 text-rose-500 hover:bg-rose-500 hover:text-white rounded-xl transition flex items-center justify-center border border-rose-100" title="Batalkan Reservasi"><i class="fas fa-times"></i></button>
+            </div>`;
+        } else {
+            let statusBadge = r.status === 'Selesai' 
+                ? `<span class="text-emerald-600 bg-emerald-50 px-2 py-1 rounded-lg border border-emerald-200 text-[10px] font-black uppercase tracking-widest"><i class="fas fa-check-circle mr-1"></i>SELESAI</span>` 
+                : `<span class="text-rose-600 bg-rose-50 px-2 py-1 rounded-lg border border-rose-200 text-[10px] font-black uppercase tracking-widest flex flex-col items-center leading-tight"><span><i class="fas fa-times-circle mr-1"></i>BATAL</span><span class="text-[8px] opacity-80 mt-0.5">(Oleh: ${r.cancelReason || 'Sistem'})</span></span>`;
+            
+            let actionBtn = r.status === 'Batal' 
+                ? `<button onclick="recallReservasi('${r.id}')" class="px-4 py-2 bg-amber-100 hover:bg-amber-500 hover:text-slate-900 text-amber-700 font-black text-[9px] uppercase tracking-widest rounded-lg transition shadow-sm border border-amber-200 flex items-center"><i class="fas fa-undo mr-1.5"></i>Recall</button>`
+                : `<button onclick="lihatDetailRiwayat('${r.id}')" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 font-black text-[9px] uppercase tracking-widest rounded-lg transition shadow-sm border border-slate-200 flex items-center"><i class="fas fa-search mr-1.5"></i>Detail</button>`;
+
+            aksiHtml = `<div class="flex justify-between items-center mt-4 pt-4 border-t border-slate-100">
+                ${statusBadge}
+                ${actionBtn}
+            </div>`;
+        }
+
         container.innerHTML += `<div class="bg-white p-5 rounded-3xl shadow-sm border border-slate-200 hover:border-amber-400 transition group flex flex-col justify-between">
             <div>
+                ${tglText}
                 <div class="flex justify-between items-start border-b border-slate-100 pb-3 mb-3">
                     <div>
                         <h4 class="font-black text-slate-800 text-sm mb-0.5">${r.nama}</h4>
@@ -2733,12 +2864,85 @@ window.renderReservasiUI = () => {
                 </div>
                 ${catText}
             </div>
-            <div class="flex space-x-2 mt-4 pt-4 border-t border-slate-100">
-                <button onclick="window.switchTab('notatersimpan')" class="flex-1 py-2.5 bg-slate-900 hover:bg-slate-800 text-amber-400 font-black text-[10px] uppercase tracking-widest rounded-xl transition shadow-md flex items-center justify-center"><i class="fas fa-utensils mr-1.5"></i>Isi Menu</button>
-                <button onclick="hapusReservasi('${r.id}')" class="w-10 h-10 bg-rose-50 text-rose-500 hover:bg-rose-500 hover:text-white rounded-xl transition flex items-center justify-center border border-rose-100" title="Batalkan Reservasi"><i class="fas fa-times"></i></button>
-            </div>
+            ${aksiHtml}
         </div>`;
     });
+};
+
+let editingResvId = null;
+
+window.bukaModalReservasiBaru = () => {
+    editingResvId = null; // Reset ID untuk mode Baru
+    document.getElementById('resNama').value = '';
+    document.getElementById('resKontak').value = '';
+    document.getElementById('resTgl').value = getTodayYMD();
+    document.getElementById('resJam').value = '18:00';
+    document.getElementById('resJmlOrang').value = '';
+    
+    document.getElementById('resDpNominal').value = '';
+    document.getElementById('resDpNominal').disabled = false;
+    document.getElementById('resDpMetode').disabled = false;
+    document.getElementById('resDpLunas').checked = false;
+    document.getElementById('resDpLunas').disabled = false;
+    document.getElementById('containerDpLunas').classList.remove('opacity-50', 'bg-slate-200');
+    document.getElementById('resCatatan').value = '';
+    
+    mejaTerpilih = []; targetKursi = 0; totalKursiTerpilih = 0;
+    
+    document.getElementById('btnTabResMeja').classList.add('opacity-50', 'cursor-not-allowed');
+    document.getElementById('btnTabResMeja').disabled = true;
+    document.getElementById('btnTabResBayar').classList.add('opacity-50', 'cursor-not-allowed');
+    document.getElementById('btnTabResBayar').disabled = true;
+    
+    switchTabReservasi('data');
+    document.getElementById('modalReservasi').classList.remove('hidden');
+};
+
+window.editReservasi = (id) => {
+    const resv = reservationsDB.find(r => r.id === id);
+    if(!resv) return;
+    
+    editingResvId = id; // Set ID untuk mode Edit
+    document.getElementById('resNama').value = resv.nama;
+    document.getElementById('resKontak').value = resv.kontak || '';
+    document.getElementById('resTgl').value = resv.tanggalRes;
+    document.getElementById('resJam').value = resv.jamRes;
+    document.getElementById('resJmlOrang').value = resv.jmlOrang;
+    document.getElementById('resCatatan').value = resv.catatan || '';
+    
+    document.getElementById('resDpNominal').value = resv.dp ? resv.dp.toLocaleString('id-ID') : '';
+    document.getElementById('resDpMetode').value = resv.metodeDp || 'CASH';
+    
+    // Jika DP sudah dikunci lunas sebelumnya, nonaktifkan input DP agar tidak dimanipulasi
+    if(resv.dpLocked) {
+        document.getElementById('resDpNominal').disabled = true;
+        document.getElementById('resDpMetode').disabled = true;
+        document.getElementById('resDpLunas').checked = true;
+        document.getElementById('resDpLunas').disabled = true;
+        document.getElementById('containerDpLunas').classList.add('opacity-50', 'bg-slate-200');
+    } else {
+        document.getElementById('resDpNominal').disabled = false;
+        document.getElementById('resDpMetode').disabled = false;
+        document.getElementById('resDpLunas').checked = false;
+        document.getElementById('resDpLunas').disabled = false;
+        document.getElementById('containerDpLunas').classList.remove('opacity-50', 'bg-slate-200');
+    }
+    
+    // Menyusun ulang memori meja yang sudah dipilih sebelumnya
+    mejaTerpilih = []; totalKursiTerpilih = 0; targetKursi = resv.jmlOrang;
+    resv.meja.forEach(mId => {
+        for(let area in masterMeja) {
+            let mFound = masterMeja[area].find(x => x.id === mId);
+            if(mFound) { mejaTerpilih.push({id: mFound.id, cap: mFound.cap}); totalKursiTerpilih += mFound.cap; }
+        }
+    });
+    
+    document.getElementById('btnTabResMeja').classList.remove('opacity-50', 'cursor-not-allowed');
+    document.getElementById('btnTabResMeja').disabled = false;
+    
+    updateKapasitasUI();
+    switchTabReservasi('data');
+    document.getElementById('modalReservasi').classList.remove('hidden');
 };
 
 window.simpanReservasiAkhir = async () => {
@@ -2751,69 +2955,167 @@ window.simpanReservasiAkhir = async () => {
     const jmlOrang = parseInt(document.getElementById('resJmlOrang').value);
     const nominalDp = getCleanNumber(document.getElementById('resDpNominal').value);
     const metodeDp = document.getElementById('resDpMetode').value;
+    const isDpLunas = document.getElementById('resDpLunas').checked;
     const catatan = document.getElementById('resCatatan').value.trim();
     const mejaArray = mejaTerpilih.map(m => m.id);
     
     if(mejaArray.length === 0) return showToast("Minimal pilih 1 meja!", "error");
 
-    showLoading("Menyimpan Reservasi & DP...");
+    showLoading("Menyimpan Reservasi...");
 
     try {
-        const idReservasiToken = "RESV-" + Date.now();
+        let existingResv = editingResvId ? reservationsDB.find(r => r.id === editingResvId) : null;
+        let idReservasiToken = existingResv ? existingResv.idToken : ("RESV-" + Date.now());
         
-        // PELURU 1: Simpan Data ke Tab Reservasi
-        await addDoc(getColRef('reservations'), {
-            idToken: idReservasiToken,
+        let payloadResv = {
             nama: nama, kontak: kontak, tanggalRes: tglRes, jamRes: jamRes, jmlOrang: jmlOrang,
             meja: mejaArray, dp: nominalDp, metodeDp: metodeDp, catatan: catatan,
-            kasir: currentUser.nama, timestamp: Date.now()
-        });
+            kasir: currentUser.nama
+        };
 
-        // PELURU 2: Jika Ada DP, Masukkan ke Laporan Kasir & Tutup Buku Hari Ini
-        if (nominalDp > 0) {
-            const dateStr = getTodayYMD();
-            const todayTrx = transactionsDB.filter(t => t.tanggal === dateStr); 
-            const noNota = "DP" + (todayTrx.length + 1).toString().padStart(2, '0');
-            
-            await addDoc(getColRef('transactions'), {
-                waktu: getTimestampStr(), tanggal: dateStr, timestamp: Date.now(),
-                kasir: currentUser.nama, tipeOrder: 'DineIn', pembayaran: metodeDp,
-                total: nominalDp, totalBayar: nominalDp, subtotal: nominalDp, diskonRp: 0, gojekFee: 0,
-                cart: [{ id: 'dp_res', nama: `[DP RESERVASI] ${tglRes} - ${nama}`, hargaDineIn: nominalDp, hargaGojek: nominalDp, qty: 1 }],
-                customer: nama, meja: mejaArray.join(','), noNota: noNota, status: 'Aktif',
-                discountInfo: { type: '%', value: 0, amount: 0 }
-            });
+        // PELURU DP & LAPORAN: Hanya tembak jika Centang Lunas aktif & belum pernah dikunci sebelumnya
+        let peluruDitembakkan = false;
+        if (nominalDp > 0 && isDpLunas) {
+            if(!existingResv || (existingResv && !existingResv.dpLocked)) {
+                const dateStr = getTodayYMD();
+                const todayTrx = transactionsDB.filter(t => t.tanggal === dateStr); 
+                const noNota = "DP" + (todayTrx.length + 1).toString().padStart(2, '0');
+                
+                await addDoc(getColRef('transactions'), {
+                    waktu: getTimestampStr(), tanggal: dateStr, timestamp: Date.now(),
+                    kasir: currentUser.nama, tipeOrder: 'DineIn', pembayaran: metodeDp,
+                    total: nominalDp, totalBayar: nominalDp, subtotal: nominalDp, diskonRp: 0, gojekFee: 0,
+                    cart: [{ id: 'dp_res', nama: `[DP RESERVASI] ${tglRes} - ${nama}`, hargaDineIn: nominalDp, hargaGojek: nominalDp, qty: 1 }],
+                    customer: nama, meja: mejaArray.join(','), noNota: noNota, status: 'Aktif',
+                    discountInfo: { type: '%', value: 0, amount: 0 }
+                });
+                payloadResv.dpLocked = true; // Kunci permanen agar tidak tertembak dua kali
+                peluruDitembakkan = true;
+            }
         }
 
-        // PELURU 3: Buat Draft Nota Tertunda (Untuk diisi Menu nanti)
-        await addDoc(getColRef('saved_bills'), {
-            waktu: getTimestampStr(), timestamp: Date.now(), kasir: currentUser.nama,
-            namaTunda: `[RESERVASI] ${nama}`, customer: nama, meja: mejaArray.join(','),
-            cart: [], tipeOrder: 'DineIn', discountInfo: { type: '%', value: 0, amount: 0 },
-            isReservasi: true, tokenRes: idReservasiToken, dpTelahDibayar: nominalDp
-        });
+        // Simpan Data Ke Database
+        if(editingResvId) {
+            await setDoc(getDocRef('reservations', editingResvId), payloadResv, { merge: true });
+            
+            // Sync nama & DP di Nota Tersimpan yang sudah ada
+            const sbExists = savedBillsDB.find(s => s.tokenRes === idReservasiToken);
+            if(sbExists) {
+                await setDoc(getDocRef('saved_bills', sbExists.id), {
+                    namaTunda: `[RESERVASI] - ${nama}`, customer: nama, meja: mejaArray.join(','),
+                    dpTelahDibayar: peluruDitembakkan || (existingResv && existingResv.dpLocked) ? nominalDp : 0
+                }, { merge: true });
+            }
+            showToast("Reservasi Berhasil Di-Update!", "success");
+        } else {
+            payloadResv.idToken = idReservasiToken;
+            payloadResv.timestamp = Date.now();
+            payloadResv.status = 'Aktif';
+            if(!payloadResv.dpLocked) payloadResv.dpLocked = false;
+            
+            await addDoc(getColRef('reservations'), payloadResv);
+            
+            // Buat Draft Nota Tertunda Baru
+            await addDoc(getColRef('saved_bills'), {
+                waktu: getTimestampStr(), timestamp: Date.now(), kasir: currentUser.nama,
+                namaTunda: `[RESERVASI] - ${nama}`, customer: nama, meja: mejaArray.join(','),
+                cart: [], tipeOrder: 'DineIn', discountInfo: { type: '%', value: 0, amount: 0 },
+                isReservasi: true, tokenRes: idReservasiToken, dpTelahDibayar: peluruDitembakkan ? nominalDp : 0
+            });
+            showToast("Reservasi Baru Disimpan!", "success");
+        }
 
         hideLoading();
-        showToast("Reservasi & DP Berhasil Disimpan!", "success");
         closeModalReservasi();
-        renderReservasiUI();
-        
-        // Pindah otomatis ke Tab Reservasi agar kasir bisa lihat hasilnya
-        window.switchTab('reservasi');
+        document.getElementById('filterTglReservasi').value = '';
+        switchMainTabReservasi('aktif');
 
     } catch (e) {
         console.error(e); hideLoading(); showToast("Gagal menyimpan reservasi", "error");
     }
 };
 
+window.lihatDetailRiwayat = (id) => {
+    const resv = reservationsDB.find(r => r.id === id);
+    if(!resv) return;
+    
+    const badgeStatus = document.getElementById('detailRiwayatStatus');
+    if(resv.status === 'Selesai') {
+        badgeStatus.innerText = "SELESAI (SUDAH HADIR)";
+        badgeStatus.className = "mt-2 inline-block px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest border border-emerald-200 bg-emerald-100 text-emerald-700";
+    } else {
+        badgeStatus.innerText = `BATAL (Oleh: ${resv.cancelReason || 'Sistem'})`;
+        badgeStatus.className = "mt-2 inline-block px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest border border-rose-200 bg-rose-100 text-rose-700";
+    }
+    
+    document.getElementById('detailRiwayatNama').innerText = resv.nama + (resv.kontak ? ` (${resv.kontak})` : '');
+    document.getElementById('detailRiwayatWaktu').innerText = resv.tanggalRes.split('-').reverse().join('/') + ' - Jam ' + resv.jamRes;
+    document.getElementById('detailRiwayatJml').innerText = resv.jmlOrang + ' Orang';
+    document.getElementById('detailRiwayatMeja').innerText = resv.meja.join(', ');
+    
+    document.getElementById('detailRiwayatDp').innerText = resv.dpLocked ? formatIDR(resv.dp) : "Rp 0 (Belum Lunas)";
+    document.getElementById('detailRiwayatTotal').innerText = resv.totalPelunasanAkhir ? formatIDR(resv.totalPelunasanAkhir) : "-";
+    
+    document.getElementById('modalDetailRiwayat').classList.remove('hidden');
+};
+
+let resvToCancelId = null;
+
 window.hapusReservasi = (id) => {
-    window.showModal("Batalkan Reservasi", "Yakin ingin membatalkan Reservasi ini? (Catatan: Jika ada DP yang sudah masuk Laporan, Anda harus membatalkannya manual di tab Laporan Kasir).", async () => {
-        if(!auth.currentUser) return;
-        showLoading("Membatalkan...");
-        await deleteDoc(getDocRef('reservations', id));
+    resvToCancelId = id;
+    document.getElementById('modalCancelResv').classList.remove('hidden');
+};
+
+window.prosesCancelResv = async (alasan) => {
+    if(!resvToCancelId || !auth.currentUser) return;
+    
+    showLoading("Membatalkan Reservasi...");
+    try {
+        const resv = reservationsDB.find(r => r.id === resvToCancelId);
+        
+        // 1. Ubah status token di database jadi Batal dan simpan alasannya
+        await setDoc(getDocRef('reservations', resvToCancelId), { status: 'Batal', cancelReason: alasan }, { merge: true });
+        
+        // 2. SINKRONISASI: Cari Nota Tersimpan yang nyangkut, lalu HANCURKAN!
+        if(resv && resv.idToken) {
+            const sb = savedBillsDB.find(s => s.tokenRes === resv.idToken);
+            if(sb) await deleteDoc(getDocRef('saved_bills', sb.id));
+        }
+
+        document.getElementById('modalCancelResv').classList.add('hidden');
         hideLoading();
-        showToast("Reservasi Dibatalkan.");
-    });
+        showToast("Reservasi Dibatalkan & Nota Dihapus.");
+    } catch (e) {
+        console.error(e); hideLoading(); showToast("Gagal membatalkan", "error");
+    }
+};
+
+window.recallReservasi = async (id) => {
+    if(!auth.currentUser) return;
+    
+    showLoading("Mengaktifkan Ulang...");
+    try {
+        const resv = reservationsDB.find(r => r.id === id);
+        
+        // 1. Ubah status token kembali ke Aktif
+        await setDoc(getDocRef('reservations', id), { status: 'Aktif', cancelReason: null }, { merge: true });
+        
+        // 2. SINKRONISASI: Bangkitkan kembali Nota Tersimpan yang sempat dihapus!
+        const sbExists = savedBillsDB.find(s => s.tokenRes === resv.idToken);
+        if(!sbExists) {
+            await addDoc(getColRef('saved_bills'), {
+                waktu: getTimestampStr(), timestamp: Date.now(), kasir: currentUser.nama,
+                namaTunda: `[RESERVASI] - ${resv.nama}`, customer: resv.nama, meja: resv.meja.join(','),
+                cart: [], tipeOrder: 'DineIn', discountInfo: { type: '%', value: 0, amount: 0 },
+                isReservasi: true, tokenRes: resv.idToken, dpTelahDibayar: resv.dp || 0
+            });
+        }
+        
+        hideLoading();
+        showToast("Reservasi Aktif Kembali!", "success");
+    } catch (e) {
+        console.error(e); hideLoading(); showToast("Gagal recall", "error");
+    }
 };
 
 window.bukaModalReservasiBaru = () => {
