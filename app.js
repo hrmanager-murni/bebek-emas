@@ -292,30 +292,21 @@ function setupRealtimeSync() {
             isCloudReady = true;
             hideLoading();
         }
-        
-        // Self-Healing: Paksa panggil ulang layar jika data telat masuk tapi user sudah terlanjur login
-        if (isCloudReady && currentUser) {
-            if (currentUser.role === 'admin' && document.getElementById('view-dashboard').classList.contains('hidden')) {
-                window.switchTab('dashboard');
-            } else if (currentUser.role === 'kasir' && document.getElementById('view-kasir').classList.contains('hidden')) {
-                window.switchTab('kasir');
-            } else if (!['admin', 'kasir'].includes(currentUser.role) && document.getElementById('view-kelolastok').classList.contains('hidden')) {
-                // Pulihkan layar Pantau Stok jika profil yang login adalah Koki, Barista, Waiter, dll
-                window.switchTab('kelolastok');
-            }
-        }
     };
     
     const handleSync = (col) => {
         let dbRef = getColRef(col);
-        const todayStr = getTodayYMD();
         
-        // HANYA tarik data hari ini untuk Kasir saat login agar ringan
+        // Tarik data 3 hari ke belakang agar saat pergantian hari (midnight) aplikasi tidak error
         if (['transactions', 'stock_mutations', 'expenses'].includes(col)) {
-            dbRef = query(getColRef(col), where('tanggal', '==', todayStr));
+            const d = new Date(); d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+            d.setDate(d.getDate() - 3);
+            const pastStr = d.toISOString().split('T')[0];
+            dbRef = query(getColRef(col), where('tanggal', '>=', pastStr));
         } else if (['close_registers'].includes(col)) {
-            // Tutup buku butuh H-1 untuk cek angsulan
-            const d = new Date(); d.setDate(d.getDate() - 1);
+            // Tutup buku butuh data lebih lama untuk cek angsulan minggu lalu
+            const d = new Date(); d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+            d.setDate(d.getDate() - 7);
             dbRef = query(getColRef(col), where('tanggal', '>=', d.toISOString().split('T')[0]));
         }
 
@@ -1001,7 +992,11 @@ window.prosesBayar = async (metode, mixCash = 0, mixTf = 0) => {
         if (window.tempTokenReservasi) {
             const resvToFinish = reservationsDB.find(r => r.idToken === window.tempTokenReservasi);
             if (resvToFinish) {
-                await setDoc(getDocRef('reservations', resvToFinish.id), { status: 'Selesai', pelunasanWaktu: getTimestampStr() }, { merge: true });
+                await setDoc(getDocRef('reservations', resvToFinish.id), { 
+                    status: 'Selesai', 
+                    pelunasanWaktu: getTimestampStr(),
+                    totalPelunasanAkhir: sisaWajibBayar // Merekam sisa pembayaran di kasir ke dalam riwayat
+                }, { merge: true });
             }
         }
 
@@ -2945,6 +2940,105 @@ window.editReservasi = (id) => {
     document.getElementById('modalReservasi').classList.remove('hidden');
 };
 
+let editingResvId = null;
+
+window.bukaModalReservasiBaru = () => {
+    editingResvId = null; // Reset ID untuk mode Baru
+    document.getElementById('editResvId').value = '';
+    document.getElementById('editResvToken').value = '';
+    
+    document.getElementById('resNama').value = '';
+    document.getElementById('resKontak').value = '';
+    document.getElementById('resTgl').value = getTodayYMD();
+    document.getElementById('resJam').value = '18:00';
+    document.getElementById('resJmlOrang').value = '';
+    
+    document.getElementById('resDpNominal').value = '';
+    document.getElementById('resCatatan').value = '';
+    
+    // Buka Kunci DP Form
+    document.getElementById('resDpNominal').disabled = false;
+    document.getElementById('resDpMetode').disabled = false;
+    document.getElementById('resDpLunas').checked = false;
+    document.getElementById('resDpLunas').disabled = false;
+    document.getElementById('containerCentangDp').classList.remove('hidden');
+    document.getElementById('containerTerkunciDp').classList.add('hidden');
+    
+    mejaTerpilih = []; targetKursi = 0; totalKursiTerpilih = 0;
+    
+    document.getElementById('btnTabResMeja').classList.add('opacity-50', 'cursor-not-allowed');
+    document.getElementById('btnTabResMeja').disabled = true;
+    document.getElementById('btnTabResBayar').classList.add('opacity-50', 'cursor-not-allowed');
+    document.getElementById('btnTabResBayar').disabled = true;
+    
+    switchTabReservasi('data');
+    document.getElementById('modalReservasi').classList.remove('hidden');
+};
+
+window.editReservasi = (id) => {
+    const resv = reservationsDB.find(r => r.id === id);
+    if(!resv) return;
+    
+    editingResvId = id; // Set ID untuk mode Edit
+    document.getElementById('editResvId').value = resv.id;
+    document.getElementById('editResvToken').value = resv.idToken;
+    
+    // Isi Data Tab 1
+    document.getElementById('resNama').value = resv.nama;
+    document.getElementById('resKontak').value = resv.kontak || '';
+    document.getElementById('resTgl').value = resv.tanggalRes;
+    document.getElementById('resJam').value = resv.jamRes;
+    document.getElementById('resJmlOrang').value = resv.jmlOrang;
+    document.getElementById('resCatatan').value = resv.catatan || '';
+    
+    // Isi Data Tab 3
+    document.getElementById('resDpNominal').value = resv.dp > 0 ? resv.dp.toLocaleString('id-ID') : '';
+    document.getElementById('resDpMetode').value = resv.metodeDp || 'CASH';
+    
+    // Logika Penguncian DP jika sudah Lunas sebelumnya
+    if(resv.dpLocked) {
+        document.getElementById('resDpNominal').disabled = true;
+        document.getElementById('resDpMetode').disabled = true;
+        document.getElementById('resDpLunas').checked = true;
+        document.getElementById('resDpLunas').disabled = true;
+        document.getElementById('containerCentangDp').classList.add('hidden');
+        document.getElementById('containerTerkunciDp').classList.remove('hidden');
+    } else {
+        document.getElementById('resDpNominal').disabled = false;
+        document.getElementById('resDpMetode').disabled = false;
+        document.getElementById('resDpLunas').checked = false;
+        document.getElementById('resDpLunas').disabled = false;
+        document.getElementById('containerCentangDp').classList.remove('hidden');
+        document.getElementById('containerTerkunciDp').classList.add('hidden');
+    }
+
+    // Rekonstruksi Meja Terpilih
+    mejaTerpilih = [];
+    totalKursiTerpilih = 0;
+    targetKursi = resv.jmlOrang;
+    
+    resv.meja.forEach(mId => {
+        let capTebakan = 4; // default
+        ['Outdoor', 'Indoor', 'Lesehan', 'Lantai 2'].forEach(area => {
+            let found = masterMeja[area].find(x => x.id === mId);
+            if(found) capTebakan = found.cap;
+        });
+        mejaTerpilih.push({ id: mId, cap: capTebakan });
+        totalKursiTerpilih += capTebakan;
+    });
+
+    document.getElementById('resTargetKursi').innerText = targetKursi;
+    updateKapasitasUI();
+    
+    document.getElementById('btnTabResMeja').classList.remove('opacity-50', 'cursor-not-allowed');
+    document.getElementById('btnTabResMeja').disabled = false;
+    document.getElementById('btnTabResBayar').classList.remove('opacity-50', 'cursor-not-allowed');
+    document.getElementById('btnTabResBayar').disabled = false;
+    
+    switchTabReservasi('data');
+    document.getElementById('modalReservasi').classList.remove('hidden');
+};
+
 window.simpanReservasiAkhir = async () => {
     if(!auth.currentUser) return showToast("Sistem Offline!", "error");
     
@@ -2994,7 +3088,7 @@ window.simpanReservasiAkhir = async () => {
             }
         }
 
-        // Simpan Data Ke Database
+        // Simpan Data Ke Database (Cek apakah Update atau Bikin Baru)
         if(editingResvId) {
             await setDoc(getDocRef('reservations', editingResvId), payloadResv, { merge: true });
             
@@ -3027,113 +3121,14 @@ window.simpanReservasiAkhir = async () => {
 
         hideLoading();
         closeModalReservasi();
+        
+        // Refresh Layar Aktif
         document.getElementById('filterTglReservasi').value = '';
         switchMainTabReservasi('aktif');
 
     } catch (e) {
         console.error(e); hideLoading(); showToast("Gagal menyimpan reservasi", "error");
     }
-};
-
-window.lihatDetailRiwayat = (id) => {
-    const resv = reservationsDB.find(r => r.id === id);
-    if(!resv) return;
-    
-    const badgeStatus = document.getElementById('detailRiwayatStatus');
-    if(resv.status === 'Selesai') {
-        badgeStatus.innerText = "SELESAI (SUDAH HADIR)";
-        badgeStatus.className = "mt-2 inline-block px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest border border-emerald-200 bg-emerald-100 text-emerald-700";
-    } else {
-        badgeStatus.innerText = `BATAL (Oleh: ${resv.cancelReason || 'Sistem'})`;
-        badgeStatus.className = "mt-2 inline-block px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest border border-rose-200 bg-rose-100 text-rose-700";
-    }
-    
-    document.getElementById('detailRiwayatNama').innerText = resv.nama + (resv.kontak ? ` (${resv.kontak})` : '');
-    document.getElementById('detailRiwayatWaktu').innerText = resv.tanggalRes.split('-').reverse().join('/') + ' - Jam ' + resv.jamRes;
-    document.getElementById('detailRiwayatJml').innerText = resv.jmlOrang + ' Orang';
-    document.getElementById('detailRiwayatMeja').innerText = resv.meja.join(', ');
-    
-    document.getElementById('detailRiwayatDp').innerText = resv.dpLocked ? formatIDR(resv.dp) : "Rp 0 (Belum Lunas)";
-    document.getElementById('detailRiwayatTotal').innerText = resv.totalPelunasanAkhir ? formatIDR(resv.totalPelunasanAkhir) : "-";
-    
-    document.getElementById('modalDetailRiwayat').classList.remove('hidden');
-};
-
-let resvToCancelId = null;
-
-window.hapusReservasi = (id) => {
-    resvToCancelId = id;
-    document.getElementById('modalCancelResv').classList.remove('hidden');
-};
-
-window.prosesCancelResv = async (alasan) => {
-    if(!resvToCancelId || !auth.currentUser) return;
-    
-    showLoading("Membatalkan Reservasi...");
-    try {
-        const resv = reservationsDB.find(r => r.id === resvToCancelId);
-        
-        // 1. Ubah status token di database jadi Batal dan simpan alasannya
-        await setDoc(getDocRef('reservations', resvToCancelId), { status: 'Batal', cancelReason: alasan }, { merge: true });
-        
-        // 2. SINKRONISASI: Cari Nota Tersimpan yang nyangkut, lalu HANCURKAN!
-        if(resv && resv.idToken) {
-            const sb = savedBillsDB.find(s => s.tokenRes === resv.idToken);
-            if(sb) await deleteDoc(getDocRef('saved_bills', sb.id));
-        }
-
-        document.getElementById('modalCancelResv').classList.add('hidden');
-        hideLoading();
-        showToast("Reservasi Dibatalkan & Nota Dihapus.");
-    } catch (e) {
-        console.error(e); hideLoading(); showToast("Gagal membatalkan", "error");
-    }
-};
-
-window.recallReservasi = async (id) => {
-    if(!auth.currentUser) return;
-    
-    showLoading("Mengaktifkan Ulang...");
-    try {
-        const resv = reservationsDB.find(r => r.id === id);
-        
-        // 1. Ubah status token kembali ke Aktif
-        await setDoc(getDocRef('reservations', id), { status: 'Aktif', cancelReason: null }, { merge: true });
-        
-        // 2. SINKRONISASI: Bangkitkan kembali Nota Tersimpan yang sempat dihapus!
-        const sbExists = savedBillsDB.find(s => s.tokenRes === resv.idToken);
-        if(!sbExists) {
-            await addDoc(getColRef('saved_bills'), {
-                waktu: getTimestampStr(), timestamp: Date.now(), kasir: currentUser.nama,
-                namaTunda: `[RESERVASI] - ${resv.nama}`, customer: resv.nama, meja: resv.meja.join(','),
-                cart: [], tipeOrder: 'DineIn', discountInfo: { type: '%', value: 0, amount: 0 },
-                isReservasi: true, tokenRes: resv.idToken, dpTelahDibayar: resv.dp || 0
-            });
-        }
-        
-        hideLoading();
-        showToast("Reservasi Aktif Kembali!", "success");
-    } catch (e) {
-        console.error(e); hideLoading(); showToast("Gagal recall", "error");
-    }
-};
-
-window.bukaModalReservasiBaru = () => {
-    document.getElementById('resNama').value = '';
-    document.getElementById('resKontak').value = '';
-    document.getElementById('resTgl').value = getTodayYMD();
-    document.getElementById('resJam').value = '18:00';
-    document.getElementById('resJmlOrang').value = '';
-    
-    mejaTerpilih = []; targetKursi = 0; totalKursiTerpilih = 0;
-    
-    document.getElementById('btnTabResMeja').classList.add('opacity-50', 'cursor-not-allowed');
-    document.getElementById('btnTabResMeja').disabled = true;
-    document.getElementById('btnTabResBayar').classList.add('opacity-50', 'cursor-not-allowed');
-    document.getElementById('btnTabResBayar').disabled = true;
-    
-    switchTabReservasi('data');
-    document.getElementById('modalReservasi').classList.remove('hidden');
 };
 
 window.closeModalReservasi = () => { document.getElementById('modalReservasi').classList.add('hidden'); };
