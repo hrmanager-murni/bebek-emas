@@ -144,8 +144,11 @@
                                 <button id="btnDineIn" onclick="setTipeOrder('DineIn')" class="px-4 py-2 rounded-lg text-[10px] font-black bg-amber-500 text-slate-900 tracking-wider shadow-sm transition">DINE IN</button>
                                 <button id="btnGojek" onclick="setTipeOrder('Gojek')" class="px-4 py-2 rounded-lg text-[10px] font-black text-slate-500 hover:text-slate-800 tracking-wider transition">GOJEK</button>
                             </div>
-                            <div class="text-right">
-                                <p class="text-[10px] text-slate-400 font-bold uppercase tracking-widest mb-0.5">Total Bayar</p>
+                            <div class="text-right flex flex-col items-end">
+                                <p class="text-[10px] text-slate-400 font-bold uppercase tracking-widest mb-0.5">Total Tagihan</p>
+                                <div id="cartDpContainer" class="hidden bg-emerald-50 px-2 py-0.5 rounded border border-emerald-100 mb-1">
+                                    <span class="text-[9px] font-black text-emerald-600 uppercase tracking-widest">Minus DP: <span id="cartDpText">- Rp 0</span></span>
+                                </div>
                                 <p id="cartTotalText" class="text-2xl font-black text-slate-800 tracking-tighter leading-none">Rp 0</p>
                             </div>
                         </div>
@@ -234,16 +237,32 @@
         <!-- VIEW: RESERVASI -->
         <section id="view-reservasi" class="view-panel absolute inset-0 p-4 overflow-y-auto hidden">
             <div class="max-w-6xl mx-auto space-y-4">
-                <div class="bg-white p-5 rounded-3xl shadow-sm border border-slate-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-                    <div>
-                        <h3 class="text-lg font-black text-slate-800 flex items-center space-x-2"><i class="fas fa-book-open text-amber-500"></i><span>Sistem Reservasi</span></h3>
-                        <p class="text-[10px] font-bold text-slate-400 mt-1 uppercase tracking-widest">Jadwal & Denah Meja Pawon Nusantara</p>
+                <!-- Header & Filter -->
+                <div class="bg-white p-5 rounded-3xl shadow-sm border border-slate-200 space-y-4">
+                    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-slate-100 pb-4">
+                        <div>
+                            <h3 class="text-lg font-black text-slate-800 flex items-center space-x-2"><i class="fas fa-book-open text-amber-500"></i><span>Sistem Reservasi</span></h3>
+                            <p class="text-[10px] font-bold text-slate-400 mt-1 uppercase tracking-widest">Jadwal & Denah Meja Pawon Nusantara</p>
+                        </div>
+                        <div class="flex items-center bg-slate-100 p-1 rounded-xl shadow-inner border border-slate-200">
+                            <button id="btnTabResvAktif" onclick="switchMainTabReservasi('aktif')" class="px-4 py-2 bg-white text-amber-600 shadow-sm rounded-lg font-black text-[10px] uppercase tracking-widest transition">🔥 Aktif</button>
+                            <button id="btnTabResvRiwayat" onclick="switchMainTabReservasi('riwayat')" class="px-4 py-2 text-slate-500 hover:text-slate-700 rounded-lg font-black text-[10px] uppercase tracking-widest transition">📜 Riwayat</button>
+                        </div>
                     </div>
-                    <div class="flex space-x-2 w-full sm:w-auto">
-                        <input type="date" id="filterTglReservasi" onchange="renderReservasiUI()" class="bg-slate-50 border border-slate-200 text-slate-700 text-xs font-black uppercase tracking-wider rounded-xl px-4 py-3 outline-none shadow-sm flex-1 sm:flex-none cursor-pointer">
-                        <button onclick="bukaModalReservasiBaru()" class="px-5 py-3 bg-amber-500 hover:bg-amber-600 text-slate-900 font-black uppercase tracking-widest text-xs rounded-xl shadow-md transition flex items-center justify-center space-x-2"><i class="fas fa-plus"></i><span class="hidden sm:inline">Buat Reservasi</span></button>
+                    <div class="flex flex-col sm:flex-row items-center justify-between gap-3">
+                        <div class="bg-amber-50 border border-amber-200 px-4 py-2.5 rounded-xl flex items-center shadow-sm w-full sm:w-auto">
+                            <span class="text-[10px] font-black text-amber-800 uppercase tracking-widest">Total <span id="labelTipeResv">Aktif</span>: <span id="resvTotalIndikator" class="text-lg ml-1 font-black">0</span> Token</span>
+                        </div>
+                        <div class="flex space-x-2 w-full sm:w-auto">
+                            <div class="flex bg-slate-50 border border-slate-200 rounded-xl overflow-hidden shadow-sm flex-1 sm:flex-none">
+                                <input type="date" id="filterTglReservasi" onchange="renderReservasiUI()" class="bg-transparent text-slate-700 text-xs font-black uppercase tracking-wider px-3 py-3 outline-none cursor-pointer">
+                                <button onclick="resetFilterReservasi()" title="Lihat Semua Tanggal" class="px-4 bg-slate-200 hover:bg-slate-300 text-slate-600 font-black transition border-l border-slate-200"><i class="fas fa-sync-alt"></i></button>
+                            </div>
+                            <button id="btnBuatResvUtama" onclick="bukaModalReservasiBaru()" class="px-5 py-3 bg-amber-500 hover:bg-amber-600 text-slate-900 font-black uppercase tracking-widest text-xs rounded-xl shadow-md transition flex items-center justify-center space-x-2 shrink-0"><i class="fas fa-plus"></i><span class="hidden sm:inline">Reservasi Baru</span></button>
+                        </div>
                     </div>
                 </div>
+                <!-- Container Cards -->
                 <div id="reservasiContainer" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 content-start"></div>
             </div>
         </section>
@@ -390,6 +409,42 @@
     <!-- Modal Diskon -->
     <div id="modalDiskon" class="fixed inset-0 bg-slate-900/80 z-[70] hidden flex items-center justify-center p-4 backdrop-blur-sm"><div class="bg-white rounded-3xl max-w-xs w-full p-6 shadow-2xl animate-fade-in relative overflow-hidden text-center"><div class="absolute top-0 left-0 w-full h-2 bg-rose-500"></div><div class="w-12 h-12 bg-rose-50 text-rose-500 rounded-full flex items-center justify-center text-xl mb-4 mx-auto border border-rose-100"><i class="fas fa-tags"></i></div><h3 class="text-base font-black mb-1 uppercase tracking-widest text-slate-800">Terapkan Diskon</h3><div class="flex bg-slate-100 p-1 rounded-xl mb-4"><button id="btnDiscPercent" onclick="setDiscountType('%')" class="flex-1 py-2 rounded-lg text-xs font-black bg-white shadow-sm text-rose-600 transition">Persen (%)</button><button id="btnDiscNominal" onclick="setDiscountType('Rp')" class="flex-1 py-2 rounded-lg text-xs font-black text-slate-500 hover:text-slate-700 transition">Rupiah (Rp)</button></div><input type="text" inputmode="numeric" oninput="formatNumberInput(this)" id="inputDiscountVal" placeholder="0" class="w-full px-4 py-3 bg-slate-50 border-2 border-slate-200 rounded-xl text-lg font-black text-slate-800 text-center mb-5 outline-none focus:border-rose-400 transition"><div class="flex space-x-2"><button onclick="closeDiscountModal()" class="flex-1 py-3 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold text-xs rounded-xl transition">Batal</button><button onclick="applyDiscount()" class="flex-1 py-3 bg-rose-500 hover:bg-rose-600 text-white font-black uppercase tracking-widest text-xs rounded-xl shadow-md transition">Terapkan</button></div></div></div>
 
+<!-- Modal Detail Riwayat Reservasi -->
+    <div id="modalDetailRiwayat" class="fixed inset-0 bg-slate-900/80 z-[90] hidden flex items-center justify-center p-4 backdrop-blur-sm">
+        <div class="bg-white rounded-3xl max-w-sm w-full p-6 shadow-2xl animate-fade-in relative overflow-hidden border border-slate-200">
+            <button onclick="document.getElementById('modalDetailRiwayat').classList.add('hidden')" class="absolute top-4 right-4 w-8 h-8 text-slate-400 hover:bg-rose-50 hover:text-rose-500 rounded-full transition flex items-center justify-center"><i class="fas fa-times"></i></button>
+            <div class="text-center mb-5 border-b border-slate-100 pb-4">
+                <h3 class="text-lg font-black uppercase tracking-widest text-slate-800">Detail Riwayat</h3>
+                <span id="detailRiwayatStatus" class="mt-2 inline-block px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest border"></span>
+            </div>
+            <div class="space-y-3 text-xs mb-6 bg-slate-50 p-4 rounded-2xl border border-slate-100 shadow-inner">
+                <div class="flex justify-between items-center"><span class="font-bold text-slate-500">Nama Tamu</span><span id="detailRiwayatNama" class="font-black text-slate-800"></span></div>
+                <div class="flex justify-between items-center"><span class="font-bold text-slate-500">Tgl & Jam</span><span id="detailRiwayatWaktu" class="font-black text-slate-800"></span></div>
+                <div class="flex justify-between items-center"><span class="font-bold text-slate-500">Kapasitas</span><span id="detailRiwayatJml" class="font-black text-slate-800"></span></div>
+                <div class="flex justify-between items-start"><span class="font-bold text-slate-500">Meja</span><span id="detailRiwayatMeja" class="font-black text-amber-600 text-right w-32 leading-tight"></span></div>
+                <div class="flex justify-between items-center pt-2 border-t border-slate-200/60"><span class="font-bold text-slate-500">Nominal DP Masuk</span><span id="detailRiwayatDp" class="font-black text-emerald-600"></span></div>
+                <div class="flex justify-between items-center"><span class="font-bold text-slate-500">Total Bayar Kasir</span><span id="detailRiwayatTotal" class="font-black text-blue-600">-</span></div>
+            </div>
+        </div>
+    </div>
+
+<!-- Modal Batal Reservasi -->
+    <div id="modalCancelResv" class="fixed inset-0 bg-slate-900/80 z-[90] hidden flex items-center justify-center p-4 backdrop-blur-sm">
+        <div class="bg-white rounded-3xl max-w-xs w-full p-6 shadow-2xl animate-fade-in relative overflow-hidden text-center border border-slate-200">
+            <div class="absolute top-0 left-0 w-full h-2 bg-rose-500"></div>
+            <div class="w-16 h-16 bg-rose-50 text-rose-500 rounded-full flex items-center justify-center text-3xl mb-4 mx-auto shadow-inner border border-rose-100">
+                <i class="fas fa-user-xmark"></i>
+            </div>
+            <h3 class="text-lg font-black text-slate-800 mb-2">Batalkan Reservasi</h3>
+            <p class="text-[10px] text-slate-500 mb-6 leading-relaxed font-bold uppercase tracking-widest">Pilih alasan pembatalan untuk disimpan ke riwayat:</p>
+            <div class="flex flex-col space-y-3 mb-5">
+                <button onclick="prosesCancelResv('Pelanggan')" class="py-3 bg-white hover:bg-rose-50 border-2 border-slate-200 hover:border-rose-400 text-slate-700 font-black text-xs uppercase tracking-widest rounded-xl transition shadow-sm flex items-center justify-center"><i class="fas fa-phone-slash mr-2 text-rose-400"></i>Dibatalkan Pelanggan</button>
+                <button onclick="prosesCancelResv('Kasir / Sistem')" class="py-3 bg-white hover:bg-rose-50 border-2 border-slate-200 hover:border-rose-400 text-slate-700 font-black text-xs uppercase tracking-widest rounded-xl transition shadow-sm flex items-center justify-center"><i class="fas fa-store-slash mr-2 text-rose-400"></i>Dibatalkan Kasir/Toko</button>
+            </div>
+            <button onclick="document.getElementById('modalCancelResv').classList.add('hidden')" class="w-full py-3 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold text-xs uppercase tracking-widest rounded-xl transition">Kembali (Tidak Jadi)</button>
+        </div>
+    </div>
+
     <!-- Modal Reservasi (Tahap 1 & 2) -->
     <div id="modalReservasi" class="fixed inset-0 bg-slate-900/80 z-[80] hidden flex items-center justify-center p-4 backdrop-blur-sm">
         <div class="bg-white rounded-3xl max-w-lg w-full shadow-2xl animate-fade-in flex flex-col max-h-[90vh] overflow-hidden border border-slate-200">
@@ -442,9 +497,9 @@
 
                 <!-- TAB 3: MENU & DP -->
                 <div id="tabResBayar" class="hidden flex flex-col h-full space-y-4 pt-2">
-                    <div class="bg-blue-50 border border-blue-200 p-4 rounded-xl flex items-center space-x-3 shadow-sm">
-                        <i class="fas fa-info-circle text-blue-500 text-2xl"></i>
-                        <p class="text-[10px] font-bold text-blue-700 leading-relaxed">Uang DP akan langsung masuk ke <span class="font-black">Laporan Transaksi & Tutup Buku</span> hari ini. Menu pesanan bisa ditambahkan nanti melalui fitur Nota Tersimpan.</p>
+                    <div class="bg-blue-50 border border-blue-200 p-3 rounded-xl flex items-start space-x-3 shadow-sm">
+                        <i class="fas fa-info-circle text-blue-500 mt-0.5"></i>
+                        <p class="text-[10px] font-bold text-blue-700 leading-relaxed">Centang <b>LUNAS</b> jika DP sudah dibayar. Uang akan otomatis masuk ke Laporan Kasir hari ini. Menu diisi nanti via Nota Tersimpan.</p>
                     </div>
 
                     <div>
@@ -455,12 +510,20 @@
                         </div>
                     </div>
 
-                    <div>
-                        <label class="block mb-1 text-[10px] uppercase tracking-widest font-black text-slate-500 pl-1">Metode Bayar DP</label>
-                        <select id="resDpMetode" class="w-full px-4 py-3.5 bg-white border border-slate-200 rounded-xl outline-none focus:border-amber-400 font-black text-slate-700 shadow-sm transition cursor-pointer">
-                            <option value="CASH">CASH (TUNAI)</option>
-                            <option value="TRANSFER">TRANSFER (TF)</option>
-                        </select>
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="block mb-1 text-[10px] uppercase tracking-widest font-black text-slate-500 pl-1">Metode Bayar DP</label>
+                            <select id="resDpMetode" class="w-full px-4 py-3.5 bg-white border border-slate-200 rounded-xl outline-none focus:border-amber-400 font-black text-slate-700 shadow-sm transition cursor-pointer">
+                                <option value="CASH">CASH (TUNAI)</option>
+                                <option value="TRANSFER">TRANSFER (TF)</option>
+                            </select>
+                        </div>
+                        <div class="flex flex-col justify-end">
+                            <label id="containerDpLunas" class="flex items-center space-x-2 bg-slate-50 border border-slate-200 p-3.5 rounded-xl cursor-pointer hover:bg-slate-100 transition shadow-sm">
+                                <input type="checkbox" id="resDpLunas" class="w-5 h-5 text-emerald-500 rounded border-slate-300 focus:ring-emerald-500">
+                                <span class="text-[10px] font-black uppercase tracking-widest text-slate-700">DP LUNAS DIBAYAR</span>
+                            </label>
+                        </div>
                     </div>
                     
                     <div>
@@ -491,7 +554,9 @@
     <div id="modalEditMutasiManager" class="fixed inset-0 bg-slate-900/80 z-[70] hidden flex items-center justify-center p-4 backdrop-blur-sm"><div class="bg-white rounded-3xl max-w-xs w-full p-6 shadow-2xl animate-fade-in relative overflow-hidden"><div class="absolute top-0 left-0 w-full h-2 bg-amber-500"></div><h3 class="text-base font-black mb-1 uppercase tracking-widest text-slate-800 text-center"><i class="fas fa-clipboard-check text-amber-500 mr-2"></i>Koreksi Fisik Real</h3><p id="editMutasiItemName" class="text-center text-xs font-bold text-slate-500 mb-4 border-b border-slate-100 pb-2">Nama Barang</p><input type="hidden" id="editMutasiDocId"><div class="space-y-4 text-xs font-bold text-slate-600"><div class="flex justify-between items-center bg-slate-50 p-3 rounded-xl border border-slate-100"><span>Sistem Seharusnya:</span><span id="editMutasiSeharusnya" class="font-black text-blue-600 text-base">0</span></div><div><label class="block mb-1 text-[10px] uppercase tracking-widest">Koreksi Angka Fisik Real</label><input type="number" step="any" id="editMutasiFisik" class="w-full px-4 py-3 bg-amber-50 border border-amber-200 rounded-xl outline-none focus:border-amber-400 font-black text-amber-800 text-xl text-center shadow-inner"></div></div><div class="flex space-x-2 mt-6"><button onclick="document.getElementById('modalEditMutasiManager').classList.add('hidden')" class="flex-1 py-3 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold text-xs rounded-xl transition">Batal</button><button onclick="simpanEditMutasiManager()" class="flex-1 py-3 bg-amber-500 hover:bg-amber-600 text-slate-900 font-black uppercase tracking-widest text-xs rounded-xl shadow-md transition">Koreksi</button></div></div></div>
 
     <!-- Modal Cetak Struk -->
-    <div id="modalStruk" class="fixed inset-0 bg-slate-900/95 z-[100] hidden flex flex-col items-center justify-center p-4 backdrop-blur-sm"><div class="bg-white rounded-lg max-w-[320px] w-full p-6 shadow-2xl text-slate-800 animate-fade-in text-xs space-y-3 font-mono relative"><button onclick="document.getElementById('modalStruk').classList.add('hidden')" class="absolute -top-4 -right-4 w-10 h-10 bg-slate-800 text-white rounded-full font-bold flex items-center justify-center shadow-lg hover:bg-rose-500 transition z-10 border-2 border-slate-700"><i class="fas fa-times text-lg"></i></button><div class="text-center border-b-2 border-dashed border-slate-300 pb-3"><h2 class="font-black text-xl tracking-widest uppercase">PAWON NUSANTARA</h2><p class="text-[10px] text-slate-600 mt-1 font-bold">Jl. ST Aminuddin<br>0821 5431 6995</p><p id="strukWaktu" class="text-[10px] text-slate-500 mt-2 font-bold"></p></div><div class="flex justify-between text-[10px] border-b border-dashed border-slate-300 pb-2 font-bold text-slate-600 uppercase"><span id="strukNota">Nota: #01</span><span id="strukKasir">Kasir: Risma</span></div><div class="py-1 border-b border-dashed border-slate-200"><div class="flex justify-between text-[10px] font-bold text-slate-500 uppercase mb-1"><span>Customer/Meja:</span><span id="strukCustomerDetail" class="text-right text-slate-800">Umum / 01</span></div></div><div id="strukItems" class="space-y-1.5 border-b-2 border-dashed border-slate-300 py-3 min-h-[50px]"></div><div class="space-y-1.5 pt-2 pb-3 border-b-2 border-dashed border-slate-300"><div class="flex justify-between font-bold text-[10px]"><span class="text-slate-500 uppercase">Subtotal</span><span id="strukSubtotal">Rp 0</span></div><div class="flex justify-between font-bold text-[10px] text-rose-600"><span class="uppercase">Diskon</span><span id="strukDiskon">- Rp 0</span></div><div class="flex justify-between font-bold text-[10px] text-blue-600 hidden" id="strukGojekRow"><span class="uppercase">Potongan App</span><span id="strukGojekFee">- Rp 0</span></div><div class="flex justify-between font-bold text-[10px]"><span class="text-slate-500 uppercase">Tipe Order</span><span id="strukTipe">DINE IN</span></div><div class="flex justify-between font-bold text-[10px]"><span class="text-slate-500 uppercase">Metode Bayar</span><span id="strukMetode">CASH</span></div></div><div class="flex justify-between items-end pt-2 pb-1"><span class="text-xs font-black text-slate-800 uppercase tracking-widest">TOTAL</span><span id="strukTotal" class="text-xl font-black tracking-tighter">Rp 0</span></div><div class="text-center pt-5"><p class="text-[9px] font-bold text-slate-500 uppercase">TERIMA KASIH ATAS KUNJUNGAN ANDA</p></div></div><div class="mt-6 w-full max-w-[320px] flex flex-col space-y-3"><button onclick="printReceiptAction()" class="w-full py-4 bg-slate-800 text-white rounded-xl font-black text-xs uppercase tracking-widest shadow-xl hover:-translate-y-1 transition border-2 border-slate-700 flex items-center justify-center space-x-2"><i class="fas fa-print text-base"></i><span>Cetak Ke Mesin Kasir</span></button><div class="flex items-center space-x-2 bg-slate-800 p-2 rounded-xl border border-slate-700 shadow-xl"><input type="number" id="inputWaNota" placeholder="Nomor WA (Cth: 0812...)" class="flex-1 bg-slate-900 text-white px-3 py-3 rounded-lg outline-none text-xs font-bold text-center border border-slate-700 focus:border-emerald-500 transition placeholder:text-slate-500"><button onclick="kirimNotaWA()" class="px-4 py-3 bg-emerald-500 text-white rounded-lg font-black text-xs uppercase tracking-widest hover:bg-emerald-400 transition flex items-center space-x-2"><i class="fab fa-whatsapp text-base"></i><span>Kirim WA</span></button></div></div></div>
+    <div id="modalStruk" class="fixed inset-0 bg-slate-900/95 z-[100] hidden flex flex-col items-center justify-center p-4 backdrop-blur-sm"><div class="bg-white rounded-lg max-w-[320px] w-full p-6 shadow-2xl text-slate-800 animate-fade-in text-xs space-y-3 font-mono relative"><button onclick="document.getElementById('modalStruk').classList.add('hidden')" class="absolute -top-4 -right-4 w-10 h-10 bg-slate-800 text-white rounded-full font-bold flex items-center justify-center shadow-lg hover:bg-rose-500 transition z-10 border-2 border-slate-700"><i class="fas fa-times text-lg"></i></button><div class="text-center border-b-2 border-dashed border-slate-300 pb-3"><h2 class="font-black text-xl tracking-widest uppercase">PAWON NUSANTARA</h2><p class="text-[10px] text-slate-600 mt-1 font-bold">Jl. ST Aminuddin<br>0821 5431 6995</p><p id="strukWaktu" class="text-[10px] text-slate-500 mt-2 font-bold"></p></div><div class="flex justify-between text-[10px] border-b border-dashed border-slate-300 pb-2 font-bold text-slate-600 uppercase"><span id="strukNota">Nota: #01</span><span id="strukKasir">Kasir: Risma</span></div><div class="py-1 border-b border-dashed border-slate-200"><div class="flex justify-between text-[10px] font-bold text-slate-500 uppercase mb-1"><span>Customer/Meja:</span><span id="strukCustomerDetail" class="text-right text-slate-800">Umum / 01</span></div></div><div id="strukItems" class="space-y-1.5 border-b-2 border-dashed border-slate-300 py-3 min-h-[50px]"></div><div class="space-y-1.5 pt-2 pb-3 border-b-2 border-dashed border-slate-300"><div class="flex justify-between font-bold text-[10px]"><span class="text-slate-500 uppercase">Subtotal</span><span id="strukSubtotal">Rp 0</span></div><div class="flex justify-between font-bold text-[10px] text-rose-600"><span class="uppercase">Diskon</span><span id="strukDiskon">- Rp 0</span></div>
+<div class="flex justify-between font-bold text-[10px] text-blue-600 hidden" id="strukGojekRow"><span class="uppercase">Potongan App</span><span id="strukGojekFee">- Rp 0</span></div>
+<div class="flex justify-between font-bold text-[10px] text-emerald-600 hidden" id="strukDpRow"><span class="uppercase">DP (Lunas)</span><span id="strukDpVal">- Rp 0</span></div><div class="flex justify-between font-bold text-[10px]"><span class="text-slate-500 uppercase">Tipe Order</span><span id="strukTipe">DINE IN</span></div><div class="flex justify-between font-bold text-[10px]"><span class="text-slate-500 uppercase">Metode Bayar</span><span id="strukMetode">CASH</span></div></div><div class="flex justify-between items-end pt-2 pb-1"><span class="text-xs font-black text-slate-800 uppercase tracking-widest">TOTAL</span><span id="strukTotal" class="text-xl font-black tracking-tighter">Rp 0</span></div><div class="text-center pt-5"><p class="text-[9px] font-bold text-slate-500 uppercase">TERIMA KASIH ATAS KUNJUNGAN ANDA</p></div></div><div class="mt-6 w-full max-w-[320px] flex flex-col space-y-3"><button onclick="printReceiptAction()" class="w-full py-4 bg-slate-800 text-white rounded-xl font-black text-xs uppercase tracking-widest shadow-xl hover:-translate-y-1 transition border-2 border-slate-700 flex items-center justify-center space-x-2"><i class="fas fa-print text-base"></i><span>Cetak Ke Mesin Kasir</span></button><div class="flex items-center space-x-2 bg-slate-800 p-2 rounded-xl border border-slate-700 shadow-xl"><input type="number" id="inputWaNota" placeholder="Nomor WA (Cth: 0812...)" class="flex-1 bg-slate-900 text-white px-3 py-3 rounded-lg outline-none text-xs font-bold text-center border border-slate-700 focus:border-emerald-500 transition placeholder:text-slate-500"><button onclick="kirimNotaWA()" class="px-4 py-3 bg-emerald-500 text-white rounded-lg font-black text-xs uppercase tracking-widest hover:bg-emerald-400 transition flex items-center space-x-2"><i class="fab fa-whatsapp text-base"></i><span>Kirim WA</span></button></div></div></div>
 
 <!-- Modal Export Excel Laporan Stok -->
     <div id="modalExcelLaporanStok" class="fixed inset-0 bg-slate-900/80 z-[100] hidden flex items-center justify-center p-4 backdrop-blur-sm">
